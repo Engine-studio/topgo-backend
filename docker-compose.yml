@@ -1,0 +1,68 @@
+version: '3'
+services:
+  uploader:
+    image: badconfig/tiny_uploader
+    container_name: uploader
+    tty: true
+    environment:
+      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@redrufus_postgres:5432/diesel_db
+    volumes:
+      - ./static:/tiny_uploader/static/
+    networks:
+      - app-network
+  server:
+    image: badconfig/topgo
+    container_name: server
+    tty: true
+    environment:
+      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@redrufus_postgres:5432/diesel_db
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./migrations/:/topgo/migrations/
+    networks:
+      - app-network
+  postgres:
+    image: "postgres:12.6"
+    container_name: topgo_postgres
+    restart: unless-stopped
+    ports:
+      - "7089:5432"
+    environment:
+      POSTGRES_DB: diesel_db
+      POSTGRES_PASSWORD: NavwNgTnxyWsz7hy5yRmEKC4X
+      POSTGRES_USER: main
+    networks:
+      - app-network
+    volumes:
+      - pg_topgo:/var/lib/postgresql/data
+  nginx:
+    image: nginx:1.15-alpine
+    container_name: nginx
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - ./static:/var/tools/static
+    ports:
+      - "80:80"
+      - "443:443"
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    networks:
+      - app-network
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    container_name: cert-bot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - app-network
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+volumes:
+  pg_topgo:
+networks:
+  app-network:
+    driver: bridge
