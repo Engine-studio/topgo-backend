@@ -5,7 +5,7 @@ services:
     container_name: uploader
     tty: true
     environment:
-      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@redrufus_postgres:5432/diesel_db
+      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@topgo_postgres:5432/diesel_db
     volumes:
       - ./static:/tiny_uploader/static/
     networks:
@@ -15,7 +15,7 @@ services:
     container_name: server
     tty: true
     environment:
-      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@redrufus_postgres:5432/diesel_db
+      - DATABASE_URL=postgres://main:NavwNgTnxyWsz7hy5yRmEKC4X@topgo_postgres:5432/diesel_db
     ports:
       - "8088:8088"
     volumes:
