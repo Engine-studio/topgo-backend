@@ -1,7 +1,7 @@
 FROM rustlang/rust:nightly AS builder
 
-RUN USER=root cargo new --bin redrufus
-WORKDIR /redrufus
+RUN USER=root cargo new --bin topgo
+WORKDIR /topgo
 
 # copy over your manifests
 COPY ./Cargo.lock ./Cargo.lock
@@ -15,7 +15,7 @@ RUN rm src/*.rs
 COPY ./src ./src
 
 # build for release
-RUN rm ./target/release/deps/redrufus*
+RUN rm ./target/release/deps/topgo*
 RUN cargo build --release
 
 FROM debian:buster-slim
@@ -29,9 +29,9 @@ RUN apt-get update && \
         --no-install-recommends
 RUN apt-get update && apt-get -y install ca-certificates libssl-dev && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /redrufus/target/release/redrufus /redrufus/redrufus
-WORKDIR /redrufus/
+COPY --from=builder /topgo/target/release/topgo /topgo/topgo
+WORKDIR /topgo/
 EXPOSE 8088
 
 
-CMD ["/redrufus/redrufus"]
+CMD ["/topgo/topgo"]

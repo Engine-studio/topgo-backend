@@ -10,9 +10,7 @@ use actix_web::middleware::Logger;
 use diesel_migrations::run_pending_migrations;
 extern crate env_logger;
 use topgo::users::routes::users_routes;
-use topgo::events::routes::event_routes;
-use topgo::paintings::routes::painting_routes;
-use topgo::payments::routes::payment_routes;
+use topgo::form::create;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -41,9 +39,6 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(web::scope("/api")
                 .configure(users_routes)
-                .configure(event_routes)
-                .configure(painting_routes)
-                .configure(payment_routes)
             )
     })
     .bind("0.0.0.0:8088")?

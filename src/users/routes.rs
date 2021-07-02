@@ -20,63 +20,106 @@ use actix_web_dev::auth::{
 };
 use super::db::{
     AuthData,
-    Seller,
-    Customer,
-    UpdateCustomer,
-    UpdateSeller
+    Couriers,
+    Curators,
+    Admins,
+    Restaurants,
+    NewAdmin,
+    NewCurator,
+    NewCourier,
+    NewRestaurant,
+    UpdateCourier,
+    UpdateCurator,
+    UpdateAdmin,
 };
 
 pub fn users_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/users")
-        .route("/seller", web::post().to(create_seller))
-        .route("/customer", web::post().to(create_customer))
         .route("/login", web::post().to(login))
-        .route("/customer", web::put().to(update_customer))
-        .route("/seller", web::put().to(update_seller))
-        .route("/seller/password", web::put().to(update_seller_pass))
-        .route("/customer/password", web::put().to(update_customer_pass))
-        .route("/seller", web::delete().to(delete_seller))
-        .route("/seller/unverifyed", web::get().to(list_unverifyed_sellers))
-        .route("/seller/verifyed", web::get().to(list_verifyed_sellers))
-        .route("/seller/verify/{id}", web::put().to(verify_seller_by_id))
-        .route("/seller/{id}", web::get().to(get_seller_from_id))
-        .route("/customer/{id}", web::get().to(get_customer_from_id))
+        .service(web::scope("/admin")
+            .route("/new", web::post().to(create_admin))
+            .route("/update", web::post().to(update_admin))
+            .route("/delete", web::post().to(delete_admin))
+        )
+        .service(web::scope("/restaurants")
+            .route("/new", web::post().to(create_restaurant))
+            .route("/delete", web::post().to(delete_restaurant))
+        )
+        .service(web::scope("/curators")
+            .route("/new", web::post().to(create_curator))
+            .route("/update", web::post().to(update_curator))
+            .route("/delete", web::post().to(delete_curator))
+        )
+        .service(web::scope("/couriers")
+            .route("/new", web::post().to(create_courier))
+            .route("/update", web::post().to(update_courier))
+            .route("/delete", web::post().to(delete_courier))
+        )
     );
 }
 
-#[derive(Deserialize)]
-pub struct CreateSeller {
-    pub auth: AuthData,
-    pub seller: UpdateSeller,
-}
-
-pub async fn create_seller(
-    form: web::Json<CreateSeller>,
+pub async fn create_admin(
+    auth: Auth,
+    form: web::Json<NewAdmin>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
     let conn = conn.get()?;
     let form = form.into_inner();
     let roles = &vec![
-        "seller".to_string(),
-        "customer".to_string()
+        "admin".to_string(),
     ];
-    let a = Auth::new(&form.auth.mail, "plain", roles, &conn).await?;
-    let s = Seller::new(&form.auth,Some(a.id), &conn).await?;
-    let mut upd = form.seller;
-    upd.id = s.id;
-    Seller::set(&upd, &conn).await?;
+    let a = Auth::new(&form.phone, "plain", roles, &conn).await?;
+    let s = Admins::new(&form,a.id, &conn).await?;
     Ok(HttpResponse::Ok().json(""))
 }
 
-pub async fn create_customer(
-    form: web::Json<AuthData>,
+pub async fn create_courier(
+    auth: Auth,
+    form: web::Json<NewCourier>,
     conn: web::Data<DbPool>,
-    _req: HttpRequest
 ) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()) ||
+        auth.roles.contains(&"curator".to_string()),"not admin or curator"); 
     let conn = conn.get()?;
     let form = form.into_inner();
-    let a = Auth::new(&form.mail, "plain", &vec!["customer".to_string()], &conn).await?;
-    Customer::new(&form,Some(a.id), &conn).await?;
+    let roles = &vec![
+        "courier".to_string(),
+    ];
+    let a = Auth::new(&form.phone, "plain", roles, &conn).await?;
+    let s = Couriers::new(&form,a.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(""))
+}
+
+pub async fn create_curator(
+    auth: Auth,
+    form: web::Json<NewCurator>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
+    let conn = conn.get()?;
+    let form = form.into_inner();
+    let roles = &vec![
+        "curator".to_string(),
+    ];
+    let a = Auth::new(&form.phone, "plain", roles, &conn).await?;
+    let s = Curators::new(&form,a.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(""))
+}
+
+pub async fn create_restaurant(
+    auth: Auth,
+    form: web::Json<NewRestaurant>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
+    let conn = conn.get()?;
+    let form = form.into_inner();
+    let roles = &vec![
+        "curator".to_string(),
+    ];
+    let a = Auth::new(&form.phone, "plain", roles, &conn).await?;
+    let s = Restaurants::new(&form,a.id, &conn).await?;
     Ok(HttpResponse::Ok().json(""))
 }
 
@@ -88,31 +131,36 @@ pub async fn login(
 ) -> Result<HttpResponse> {
     let conn = conn.get()?;
     let form = form.into_inner();
-    if let Ok(customer) = Customer::get(&form, &conn).await {
-        let auth = Auth::get(&form.mail, "plain", &conn).await?;
+    if let Ok(admin) = Admins::get(&form, &conn).await {
+        let auth = Auth::get(&form.phone, "plain", &conn).await?;
         let jwt = auth.get_jwt(&secret).await?;
         return Ok(HttpResponse::Ok().json(json!({
             "jwt":jwt,
-            "customer":customer,
-            "is_admin":auth.roles.contains(&"admin".to_string()),
+            "admin":admin,
         })));
     }
-    if let Ok(seller) = Seller::get(&form, &conn).await {
-        if seller.verifyed == false {
-            return Ok(HttpResponse::Ok().json(json!({
-                "is_admin": false,
-                "jwt": (),
-                "seller": {
-                    "verifyed": false,
-                }
-            })));
-        }
-        let auth = Auth::get(&form.mail, "plain", &conn).await?;
+    if let Ok(restaurant) = Restaurants::get(&form, &conn).await {
+        let auth = Auth::get(&form.phone, "plain", &conn).await?;
         let jwt = auth.get_jwt(&secret).await?;
         return Ok(HttpResponse::Ok().json(json!({
             "jwt":jwt,
-            "seller":seller,
-            "is_admin":auth.roles.contains(&"admin".to_string()),
+            "restaurant":restaurant,
+        })));
+    }
+    if let Ok(curator) = Curators::get(&form, &conn).await {
+        let auth = Auth::get(&form.phone, "plain", &conn).await?;
+        let jwt = auth.get_jwt(&secret).await?;
+        return Ok(HttpResponse::Ok().json(json!({
+            "jwt":jwt,
+            "curator":curator,
+        })));
+    }
+    if let Ok(courier) = Couriers::get(&form, &conn).await {
+        let auth = Auth::get(&form.phone, "plain", &conn).await?;
+        let jwt = auth.get_jwt(&secret).await?;
+        return Ok(HttpResponse::Ok().json(json!({
+            "jwt":jwt,
+            "courier":courier,
         })));
     }
     Err(ApiError{
@@ -122,120 +170,85 @@ pub async fn login(
     })
 }
 
-pub async fn update_customer(
+pub async fn update_admin(
     auth: Auth,
-    form: web::Json<UpdateCustomer>,
+    form: web::Json<UpdateAdmin>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
-    require!((auth.roles.contains(&"customer".to_string()) &&
-        auth.id == form.id) || 
-        auth.roles.contains(&"admin".to_string()),"not your account");
+    require!(auth.id == form.id,"not your account");
     let conn = conn.get()?;
-    let r = Customer::set(&form.into_inner(),&conn).await?;
+    let r = Admins::set(&form.into_inner(),&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
-#[derive(Deserialize)]
-pub struct Pass {
-    new_password: String,
-}
-
-pub async fn update_customer_pass(
+pub async fn update_courier(
     auth: Auth,
-    form: web::Json<Pass>,
+    form: web::Json<UpdateCourier>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
-    require!(auth.roles.contains(&"admin".to_string()),"not admin");
+    require!(auth.id == form.id,"not your account");
     let conn = conn.get()?;
-    Customer::update_pass(auth.id,&form.new_password,&conn).await?;
-    Ok(HttpResponse::Ok().json(""))
-}
-
-pub async fn list_unverifyed_sellers(
-    auth: Auth,
-    conn: web::Data<DbPool>,
-) -> Result<HttpResponse> {
-    require!(auth.roles.contains(&"admin".to_string()),"not admin");
-    let conn = conn.get()?;
-    let r = Seller::list_unverifyed(&conn).await?;
+    let r = Couriers::set(&form.into_inner(),&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
-pub async fn list_verifyed_sellers(
+pub async fn update_curator(
+    auth: Auth,
+    form: web::Json<UpdateCurator>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
+    require!(auth.id == form.id,"not your account");
     let conn = conn.get()?;
-    let r = Seller::list_verifyed(&conn).await?;
+    let r = Curators::set(&form.into_inner(),&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
-pub async fn update_seller_pass(
-    auth: Auth,
-    form: web::Json<Pass>,
-    conn: web::Data<DbPool>,
-    req: HttpRequest
-) -> Result<HttpResponse> {
-    let conn = conn.get()?;
-    Seller::update_pass(auth.id,&form.new_password,&conn).await?;
-    Ok(HttpResponse::Ok().json(""))
-}
 #[derive(Deserialize)]
 pub struct Id {
     id: i64,
 }
 
-pub async fn verify_seller_by_id(
-    path: web::Path<i64>,
-    conn: web::Data<DbPool>,
-) -> Result<HttpResponse> {
-    let conn = conn.get()?;
-    let id = path.0;
-    Seller::verify(id, &conn).await?;
-    Ok(HttpResponse::Ok().json(""))
-}
-
-pub async fn get_customer_from_id(
-    path: web::Path<i64>,
-    conn: web::Data<DbPool>,
-    req: HttpRequest
-) -> Result<HttpResponse> {
-    let conn = conn.get()?;
-    let id = path.0;
-    let r = Customer::from_id(id,&conn).await?;
-    Ok(HttpResponse::Ok().json(r))
-}
-
-pub async fn get_seller_from_id(
-    path: web::Path<i64>,
-    conn: web::Data<DbPool>,
-    req: HttpRequest
-) -> Result<HttpResponse> {
-    let conn = conn.get()?;
-    let id = path.0;
-    let r = Seller::from_id(id,&conn).await?;
-    Ok(HttpResponse::Ok().json(r))
-}
-
-pub async fn update_seller(
+pub async fn delete_admin(
     auth: Auth,
-    form: web::Json<UpdateSeller>,
-    conn: web::Data<DbPool>,
-    req: HttpRequest
-) -> Result<HttpResponse> {
-    require!(auth.roles.contains(&"admin".to_string()) ||
-        (auth.roles.contains(&"seller".to_string()) &&
-            auth.id == form.id) ,"not permited");
-    let conn = conn.get()?;
-    let r = Seller::set(&form,&conn).await?;
-    Ok(HttpResponse::Ok().json(r))
-}
-
-pub async fn delete_seller(
     form: web::Json<Id>,
     conn: web::Data<DbPool>,
-    req: HttpRequest
 ) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
     let conn = conn.get()?;
-    let r = Seller::delete(form.id,&conn).await?;
+    let r = Admins::delete(form.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn delete_courier(
+    auth: Auth,
+    form: web::Json<Id>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()) ||
+        auth.roles.contains(&"curator".to_string()),"not admin or curator"); 
+    let conn = conn.get()?;
+    let r = Couriers::delete(form.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn delete_curator(
+    auth: Auth,
+    form: web::Json<Id>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
+    let conn = conn.get()?;
+    let r = Curators::delete(form.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn delete_restaurant(
+    auth: Auth,
+    form: web::Json<Id>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
+    let conn = conn.get()?;
+    let r = Restaurants::delete(form.id,&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }

@@ -1,5 +1,8 @@
 table! {
-    admin (id) {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    admins (id) {
         id -> Int8,
         name -> Varchar,
         surname -> Varchar,
@@ -13,6 +16,9 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     courier_rating (id) {
         id -> Int8,
         courier_id -> Int8,
@@ -23,6 +29,9 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     couriers (id) {
         id -> Int8,
         name -> Varchar,
@@ -33,6 +42,7 @@ table! {
         is_blocked -> Bool,
         is_warned -> Bool,
         is_deleted -> Bool,
+        is_in_order -> Bool,
         current_rate -> Nullable<Int2>,
         picture -> Nullable<Varchar>,
         cash -> Int8,
@@ -43,7 +53,33 @@ table! {
 }
 
 table! {
-    curator (id) {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    couriers_approvals (id) {
+        id -> Int8,
+        courier_id -> Int8,
+        order_id -> Int8,
+        datetime -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    couriers_to_curators (id) {
+        id -> Int8,
+        courier_id -> Nullable<Int8>,
+        curator_id -> Nullable<Int8>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    curators (id) {
         id -> Int8,
         name -> Varchar,
         surname -> Varchar,
@@ -57,6 +93,9 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     orders (id) {
         id -> Int8,
         restaurant_id -> Int8,
@@ -64,15 +103,15 @@ table! {
         details -> Varchar,
         is_big_order -> Bool,
         delivery_address -> Varchar,
-        address_lat -> Int8,
-        address_lng -> Int8,
-        method -> Pay_method,
+        address_lat -> Float8,
+        address_lng -> Float8,
+        method -> Paymethod,
         courier_share -> Int8,
         order_price -> Int8,
         cooking_time -> Interval,
         client_phone -> Varchar,
         client_comment -> Varchar,
-        status -> Order_status,
+        status -> Orderstatus,
         finalize_comment -> Nullable<Varchar>,
         take_datetime -> Nullable<Timestamp>,
         creation_datetime -> Timestamp,
@@ -80,6 +119,9 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     orders_history (id) {
         id -> Int8,
         restaurant_id -> Int8,
@@ -87,15 +129,15 @@ table! {
         details -> Varchar,
         is_big_order -> Bool,
         delivery_address -> Varchar,
-        address_lat -> Int8,
-        address_lng -> Int8,
-        method -> Pay_method,
+        address_lat -> Float8,
+        address_lng -> Float8,
+        method -> Paymethod,
         courier_share -> Int8,
         order_price -> Int8,
         cooking_time -> Time,
         client_phone -> Varchar,
         client_comment -> Varchar,
-        status -> Order_status,
+        status -> Orderstatus,
         finalize_comment -> Nullable<Varchar>,
         take_datetime -> Nullable<Timestamp>,
         creation_datetime -> Timestamp,
@@ -103,14 +145,17 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     restaurants (id) {
         id -> Int8,
         name -> Varchar,
         address -> Varchar,
         phone -> Varchar,
         pass_hash -> Varchar,
-        location_lat -> Int8,
-        location_lng -> Int8,
+        location_lat -> Float8,
+        location_lng -> Float8,
         working_from -> Array<Time>,
         working_till -> Array<Time>,
         is_working -> Bool,
@@ -120,36 +165,53 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     sessions (id) {
         id -> Int8,
         courier_id -> Int8,
-        start_datetime -> Timestamp,
-        end_datetime -> Timestamp,
+        start_time -> Time,
+        end_time -> Time,
         session_day -> Date,
-        transport -> Transport_type,
+        transport -> Transporttype,
     }
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     sessions_history (id) {
         id -> Int8,
         courier_id -> Int8,
         start_datetime -> Timestamp,
         end_datetime -> Timestamp,
         session_day -> Date,
-        transport -> Transport_type,
+        transport -> Transporttype,
     }
 }
 
+joinable!(courier_rating -> couriers (courier_id));
+joinable!(courier_rating -> orders_history (order_id));
+joinable!(couriers_approvals -> couriers (courier_id));
+joinable!(couriers_approvals -> orders (order_id));
+joinable!(couriers_to_curators -> couriers (courier_id));
+joinable!(couriers_to_curators -> curators (curator_id));
 joinable!(orders -> couriers (courier_id));
 joinable!(orders -> restaurants (restaurant_id));
+joinable!(orders_history -> couriers (courier_id));
 joinable!(orders_history -> restaurants (restaurant_id));
+joinable!(sessions -> couriers (courier_id));
+joinable!(sessions_history -> couriers (courier_id));
 
 allow_tables_to_appear_in_same_query!(
-    admin,
+    admins,
     courier_rating,
     couriers,
-    curator,
+    couriers_approvals,
+    couriers_to_curators,
+    curators,
     orders,
     orders_history,
     restaurants,

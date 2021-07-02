@@ -1,6 +1,28 @@
-#[derive(DbEnum)]
+#[derive(Debug,DbEnum)]
+#[DieselType = "Paymethod"]
 pub enum PayMethod {
-    cash,  // All variants must be fieldless
-    card,
-    already_payed,
+    Cash,  // All variants must be fieldless
+    Card,
+    AlreadyPayed,
+}
+
+#[derive(Debug,DbEnum)]
+#[DieselType = "Orderstatus"]
+pub enum OrderStatus {
+    CourierFinding,
+    CourierConfirmation,
+    Cooking,
+    ReadyForDelivery,
+    Delivering,
+    FailureByCourier,
+    FailureByInnocent,
+    Success,
+}
+
+#[derive(Debug,DbEnum)]
+#[DieselType = "Transporttype"]
+pub enum TransportType {
+    Car,  // All variants must be fieldless
+    Feet,
+    Bicycle,
 }
