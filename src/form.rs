@@ -11,7 +11,7 @@ use actix_web_dev::error::{
 };
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize,Clone,Debug)]
 pub struct LandingRequest {
     name: String,
     phone: String,
@@ -19,12 +19,12 @@ pub struct LandingRequest {
     text: String,
 }
 
-pub async fn create(
+pub async fn create_landing_form(
     form: web::Json<LandingRequest>,
-) -> Result<()> {
+) -> Result<HttpResponse> {
     let form = form.into_inner();
-    send_auth_link(&form).await;
-    Ok(())
+    send_auth_link(&form).await?;
+    Ok(HttpResponse::Ok().finish())
 }
 
 pub async fn send_auth_link(form: &LandingRequest) -> Result<()>  {
@@ -90,7 +90,7 @@ pub async fn send_auth_link(form: &LandingRequest) -> Result<()>  {
     let _ = mailer.send(&email).map_err(|e|{
         ApiError {
             code: 500,
-            message: "err building msg".to_string(),
+            message: "err sending msg".to_string(),
             error_type: ErrorType::InternalError,
         }
     })?;

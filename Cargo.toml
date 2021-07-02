@@ -27,3 +27,4 @@ ring = "0.16.20"
 data-encoding = "2.3.2"
 diesel-derive-enum = { version = "1", features = ["postgres"] }
 lettre = { version = "0.10.0-alpha.2", features = ["builder"] }
+r2d2_redis = "0.14.0"
