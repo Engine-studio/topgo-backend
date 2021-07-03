@@ -33,6 +33,11 @@ use super::db::{
     UpdateAdmin,
 };
 
+#[derive(Deserialize)]
+pub struct Id {
+    id: i64,
+}
+
 pub fn users_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/users")
         .route("/login", web::post().to(login))
@@ -44,18 +49,66 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
         .service(web::scope("/restaurants")
             .route("/new", web::post().to(create_restaurant))
             .route("/delete", web::post().to(delete_restaurant))
+            .route("/get_all", web::post().to(get_all_restaurant))
         )
         .service(web::scope("/curators")
             .route("/new", web::post().to(create_curator))
             .route("/update", web::post().to(update_curator))
             .route("/delete", web::post().to(delete_curator))
+            .route("/get_all", web::post().to(get_all_curator))
         )
         .service(web::scope("/couriers")
             .route("/new", web::post().to(create_courier))
             .route("/update", web::post().to(update_courier))
             .route("/delete", web::post().to(delete_courier))
+            .route("/toggle_ban", web::post().to(toggle_ban_courier))
+            .route("/get_all", web::post().to(get_all_courier))
         )
     );
+}
+
+pub async fn toggle_ban_courier(
+    auth: Auth,
+    form: web::Json<Id>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"curator".to_string()) ||
+        auth.roles.contains(&"admin".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = Couriers::toggle_ban(form.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_all_courier(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"curator".to_string()) ||
+        auth.roles.contains(&"admin".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = Couriers::get_all(&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_all_curator(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"admin".to_string()), "not admin");
+    let conn = conn.get()?;
+    let r = Curators::get_all(&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_all_restaurant(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"curator".to_string()) ||
+        auth.roles.contains(&"admin".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = Restaurants::get_all(&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn create_admin(
@@ -203,10 +256,7 @@ pub async fn update_curator(
     Ok(HttpResponse::Ok().json(r))
 }
 
-#[derive(Deserialize)]
-pub struct Id {
-    id: i64,
-}
+
 
 pub async fn delete_admin(
     auth: Auth,

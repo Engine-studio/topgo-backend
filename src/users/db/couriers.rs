@@ -129,4 +129,26 @@ impl Couriers {
         Ok(())
     }
 
+    pub async fn toggle_ban(
+        id: i64,
+        conn: &PgConnection,
+    ) -> Result<()> {
+        diesel::update(couriers::table
+            .filter(couriers::id.eq(id)))
+            .set(
+                couriers::is_blocked.eq(diesel::dsl::not(couriers::is_blocked))
+            )
+            .execute(conn)?;
+        Ok(())
+    }
+
+    pub async fn get_all(
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = couriers::table
+            .filter(couriers::is_deleted.eq(false))
+            .get_results(conn)?;
+        Ok(r)
+    }
+
 }

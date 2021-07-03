@@ -121,4 +121,12 @@ impl Restaurants {
         Ok(())
     }
 
+    pub async fn get_all(
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = restaurants::table
+            .filter(restaurants::is_deleted.eq(false))
+            .get_results(conn)?;
+        Ok(r)
+    }
 }

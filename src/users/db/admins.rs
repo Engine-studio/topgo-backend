@@ -79,6 +79,7 @@ impl Admins {
         conn: &PgConnection,
     ) -> Result<Self> {
         let pass_hash = make_hash(&creds.password);
+        println!("hash:: {}",pass_hash);
         let r = admins::table
             .filter(admins::phone.eq(&creds.phone))
             .filter(admins::pass_hash.eq(pass_hash))

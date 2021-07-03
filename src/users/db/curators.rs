@@ -110,5 +110,14 @@ impl Curators {
             .execute(conn)?;
         Ok(())
     }
+    
+    pub async fn get_all(
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = curators::table
+            .filter(curators::is_deleted.eq(false))
+            .get_results(conn)?;
+        Ok(r)
+    }
 
 }
