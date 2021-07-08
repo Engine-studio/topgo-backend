@@ -55,6 +55,7 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/new", web::post().to(create_curator))
             .route("/update", web::post().to(update_curator))
             .route("/delete", web::post().to(delete_curator))
+            .route("/get_random", web::post().to(get_random_curator))
             .route("/get_all", web::post().to(get_all_curator))
         )
         .service(web::scope("/couriers")
@@ -76,6 +77,15 @@ pub async fn toggle_ban_courier(
         auth.roles.contains(&"admin".to_string()),"not permitted"); 
     let conn = conn.get()?;
     let r = Couriers::toggle_ban(form.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_random_curator(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    let conn = conn.get()?;
+    let r = Curators::get_random(&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
@@ -149,6 +159,7 @@ pub async fn create_curator(
     form: web::Json<NewCurator>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
+    println!("{:?}",auth.roles);
     require!(auth.roles.contains(&"admin".to_string()),"not admin"); 
     let conn = conn.get()?;
     let form = form.into_inner();

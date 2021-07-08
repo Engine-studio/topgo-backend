@@ -12,18 +12,29 @@ use crate::schema::{
     curators,
 };
 
-#[derive(Serialize,Deserialize,Clone,Queryable,Identifiable)]
+use diesel::sql_types::*;
+
+#[derive(Serialize,Deserialize,Clone,QueryableByName,Queryable,Identifiable)]
 #[table_name = "curators"]
 #[primary_key(id)]
 pub struct Curators {
+    #[sql_type="Bigint"]
     pub id: i64,
+    #[sql_type="Varchar"]
     pub name: String,
+    #[sql_type="Varchar"]
     pub surname: String,
+    #[sql_type="Varchar"]
     pub patronymic: String,
+    #[sql_type="Varchar"]
     pub phone: String,
+    #[sql_type="Varchar"]
     pub pass_hash: String,
+    #[sql_type="Bool"]
     pub is_deleted: bool,
+    #[sql_type="Nullable<Varchar>"]
     pub picture: Option<String>,
+    #[sql_type="Timestamp"]
     pub creation_datetime: chrono::NaiveDateTime,
 }
 
@@ -61,6 +72,14 @@ impl Curators {
             ))
             .execute(conn)?;
         Ok(())
+    }
+
+    pub async fn get_random(
+        conn: &PgConnection,
+    ) -> Result<Self> {
+        let r = diesel::sql_query("SELECT * FROM get_random_curator;")
+            .get_result(conn)?;
+        Ok(r)
     }
 
     pub async fn from_id(

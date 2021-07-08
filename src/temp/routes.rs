@@ -66,6 +66,7 @@ pub async fn rm_location(
     auth: Auth,
     redis_conn: web::Data<RedisDbPool>,
 ) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"courier".to_string()),"not courier"); 
     let mut conn = redis_conn.get()?;
     rm_coords(auth.id, &mut conn).await?;
     Ok(HttpResponse::Ok().json(""))

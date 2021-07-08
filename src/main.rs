@@ -12,6 +12,7 @@ extern crate env_logger;
 use topgo::users::routes::users_routes;
 use topgo::form::create_landing_form;
 use topgo::temp::routes::location_routes;
+use topgo::ordering::routes::ordering_routes;
 use r2d2_redis::{r2d2 as rd_redis, redis, RedisConnectionManager};
 
 #[actix_web::main]
@@ -49,6 +50,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/api")
                 .configure(users_routes)
                 .configure(location_routes)
+                .configure(ordering_routes)
                 .route("/form", web::post().to(create_landing_form))
             )
     })

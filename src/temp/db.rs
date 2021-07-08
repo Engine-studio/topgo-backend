@@ -29,30 +29,27 @@ pub struct CoordsWithStamp {
 }
 
 pub async fn set_coords(loc: CourierLocation, conn: &mut redis::Connection) -> Result<()> {
-    conn.hset("courier", loc.courier_id, ( 
-            loc.courier_id,
-            loc.location.lat,
-            loc.location.lng,
-            chrono::Utc::now().timestamp(),
-    ))?;
+    conn.hset("courier", loc.courier_id, serde_json::to_string(&CoordsWithStamp {
+            courier_id: loc.courier_id,
+            lat: loc.location.lat,
+            lng: loc.location.lng,
+            timestamp: chrono::Utc::now().timestamp(),
+    }).expect("err rerealize"))?;
     Ok(())
 }
 
 pub async fn get_coords(
     conn: &mut redis::Connection
 ) -> Result<Vec<CoordsWithStamp>> {
-    let v: Vec<(i64,f64,f64,i64)> = conn.hgetall("courier")?;
+    let v: Vec<(i64,String)> = conn.hgetall("courier")?;
+    println!("v: {:?}",v);
     let r: Vec<CoordsWithStamp> = v
         .into_iter()
-        .map(|f|{
-            CoordsWithStamp {
-                courier_id: f.0,
-                lat: f.1,
-                lng: f.2,
-                timestamp: f.3,
-            }
+        .map(|(_,f)|{
+            serde_json::from_str(&f).unwrap()
         })
         .collect();
+    println!("r: {:?}",r);
     Ok(r)
 }
 
