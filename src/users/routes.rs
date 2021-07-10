@@ -35,6 +35,7 @@ use super::db::{
     CouriersForAdmin,
     RestaurantsInfo,
     NullMoney,
+    CouriersHistory,
 };
 
 #[derive(Deserialize)]
@@ -71,6 +72,7 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/get_all", web::post().to(get_all_courier))
             .route("/couriers_for_administration", web::post().to(couriers_for_administration))
             .route("/get", web::post().to(get_self_courier))
+            .route("/get_history", web::post().to(get_self_history_courier))
             .route("/null_money", web::post().to(null_money_couriers))
         )
     );
@@ -97,6 +99,15 @@ pub async fn order_info_restaurant(
     Ok(HttpResponse::Ok().json(r))
 }
 
+pub async fn get_self_history_courier(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    let conn = conn.get()?;
+    let r = CouriersHistory::get(auth.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
 pub async fn get_self_courier(
     auth: Auth,
     conn: web::Data<DbPool>,
@@ -106,15 +117,24 @@ pub async fn get_self_courier(
     Ok(HttpResponse::Ok().json(r))
 }
 
+use r2d2_redis::{RedisConnectionManager, r2d2, redis::{self, Commands}};
+pub type RedisDbPool = r2d2::Pool<RedisConnectionManager>;
 pub async fn couriers_for_administration(
     auth: Auth,
     conn: web::Data<DbPool>,
+    redis_conn: web::Data<RedisDbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"curator".to_string()) ||
         auth.roles.contains(&"admin".to_string()),"not permitted"); 
     let conn = conn.get()?;
+    let mut redis_conn = redis_conn.get()?;
     let r = CouriersForAdmin::get(&conn).await?;
-    Ok(HttpResponse::Ok().json(r))
+    use crate::temp::db::get_coords;
+    let c = get_coords(&mut redis_conn).await?;
+    Ok(HttpResponse::Ok().json(json!({
+            "couriers": r,
+            "coords": c,
+    })))
 }
 
 pub async fn toggle_ban_courier(
@@ -271,9 +291,13 @@ pub async fn login(
     if let Ok(courier) = Couriers::get(&form, &conn).await {
         let auth = Auth::get(&form.phone, "plain", &conn).await?;
         let jwt = auth.get_jwt(&secret).await?;
+        let session = Couriers::get_session(auth.id, &conn)
+            .await
+            .ok();
         return Ok(HttpResponse::Ok().json(json!({
-            "jwt":jwt,
-            "courier":courier,
+            "jwt": jwt,
+            "courier": courier,
+            "session": session,
         })));
     }
     Err(ApiError{

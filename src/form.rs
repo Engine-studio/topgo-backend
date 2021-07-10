@@ -50,8 +50,8 @@ pub async fn send_auth_link(form: &LandingRequest) -> Result<()>  {
 
     println!("msg {}",html);
     let email = Message::builder()
-    .from("topgo-noreply@yandex.ru".parse().unwrap())
-    .to("topgo-noreply@yandex.ru".parse().unwrap())
+    .from("noreply@topgo.club".parse().unwrap())
+    .to("noreply@topgo.club".parse().unwrap())
     .subject("New Request")
     .multipart(
             MultiPart::alternative() // This is composed of two parts.
@@ -78,7 +78,7 @@ pub async fn send_auth_link(form: &LandingRequest) -> Result<()>  {
     })?;
 
     let creds = Credentials::new("topgo-noreply@yandex.ru".to_string(), 
-        "xarres-moMtuv-qodme6".to_string());
+        "2XkkLGRceLK".to_string());
 
     // Open a remote connection to gmail
     let mailer = SmtpTransport::relay("smtp-pulse.com")

@@ -4,7 +4,7 @@ use actix_web_dev::error::{
     ApiError,
 };
 use serde::{Serialize, Deserialize};
-use diesel::prelude::*;
+use diesel::{prelude::*, query_dsl::InternalJoinDsl};
 use diesel::pg::PgConnection;
 use super::*;
 
@@ -182,6 +182,31 @@ impl Orders {
             .execute(conn)?;
         Ok(())
     }
+
+    pub async fn get_orders_by_session_id (
+        session_id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = orders::table
+            .filter(orders::session_id.eq(session_id))
+            .get_results::<Self>(conn)?;
+        Ok(r)
+    }
+
+    pub async fn get_orders_by_courier_id (
+        id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = orders::table
+            .inner_join(sessions::table.on(orders::session_id.eq(sessions::id.nullable())))
+            .filter(sessions::courier_id.eq(id))
+            .select(orders::id)
+            .get_results::<i64>(conn)?;
+        let r = orders::table
+            .filter(orders::id.eq_any(r))
+            .get_results::<Self>(conn)?;
+        Ok(r)
+    }
     
     pub async fn get_orders_by_rest_id (
         id: i64,
@@ -269,7 +294,7 @@ pub struct NewSession {
    pub courier_id: i64,
    pub start_time: chrono::NaiveTime,
    pub end_time: chrono::NaiveTime,
-   pub session_day: chrono::NaiveDate,
+   pub has_terminal: bool,
    pub transport: TransportType,
 }
 

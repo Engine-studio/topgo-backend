@@ -2,6 +2,7 @@ FROM rustlang/rust:nightly AS builder
 
 RUN USER=root cargo new --bin topgo
 WORKDIR /topgo
+RUN apt update -y && apt install -y clang
 
 # copy over your manifests
 COPY ./Cargo.lock ./Cargo.lock

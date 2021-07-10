@@ -81,10 +81,24 @@ table! {
     use diesel::sql_types::*;
     use crate::enum_types::*;
 
-    couriers_to_curators (id) {
+    couriers_for_curators_xls_reports (id) {
         id -> Int8,
+        report_type -> Varchar,
+        filename -> Varchar,
+        creation_date -> Date,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    couriers_xls_reports (id) {
+        id -> Int8,
+        report_type -> Varchar,
         courier_id -> Nullable<Int8>,
-        curator_id -> Nullable<Int8>,
+        filename -> Varchar,
+        creation_date -> Date,
     }
 }
 
@@ -171,18 +185,6 @@ table! {
     use diesel::sql_types::*;
     use crate::enum_types::*;
 
-    reports (id) {
-        id -> Int8,
-        report_type -> Varchar,
-        filename -> Varchar,
-        creation_date -> Timestamp,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-    use crate::enum_types::*;
-
     restaurants (id) {
         id -> Int8,
         name -> Varchar,
@@ -203,6 +205,31 @@ table! {
     use diesel::sql_types::*;
     use crate::enum_types::*;
 
+    restaurants_for_curators_xls_reports (id) {
+        id -> Int8,
+        report_type -> Varchar,
+        filename -> Varchar,
+        creation_date -> Date,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    restaurants_xls_reports (id) {
+        id -> Int8,
+        report_type -> Varchar,
+        restaurant_id -> Nullable<Int8>,
+        filename -> Varchar,
+        creation_date -> Date,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
     sessions (id) {
         id -> Int8,
         courier_id -> Int8,
@@ -216,11 +243,13 @@ table! {
 }
 
 joinable!(courier_rating -> couriers (courier_id));
+joinable!(courier_rating -> orders (order_id));
 joinable!(couriers_approvals -> couriers (courier_id));
-joinable!(couriers_to_curators -> couriers (courier_id));
-joinable!(couriers_to_curators -> curators (curator_id));
-joinable!(notifications_to_couriers -> couriers (courier_id));
+joinable!(couriers_approvals -> orders (order_id));
+joinable!(couriers_xls_reports -> couriers (courier_id));
 joinable!(orders -> restaurants (restaurant_id));
+joinable!(orders -> sessions (session_id));
+joinable!(restaurants_xls_reports -> restaurants (restaurant_id));
 joinable!(sessions -> couriers (courier_id));
 
 allow_tables_to_appear_in_same_query!(
@@ -229,13 +258,15 @@ allow_tables_to_appear_in_same_query!(
     courier_rating,
     couriers,
     couriers_approvals,
-    couriers_to_curators,
+    couriers_for_curators_xls_reports,
+    couriers_xls_reports,
     curators,
     notifications,
     notifications_to_couriers,
     orders,
     pending_files,
-    reports,
     restaurants,
+    restaurants_for_curators_xls_reports,
+    restaurants_xls_reports,
     sessions,
 );

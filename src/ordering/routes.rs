@@ -54,7 +54,19 @@ pub fn ordering_routes(cfg: &mut web::ServiceConfig) {
         .route("/create_session", web::post().to(create_session))
         .route("/cancel_session", web::post().to(cancel_session))
         .route("/get_session", web::post().to(get_session))
+        .route("/get_orders_by_session_id", web::post().to(get_orders_by_session_id))
+        .route("/get_orders_by_couriers_id", web::post().to(get_orders_by_couriers_id))
     );
+}
+
+pub async fn get_orders_by_couriers_id(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = Orders::get_orders_by_courier_id(auth.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn get_notifications(
@@ -166,52 +178,60 @@ pub async fn get_by_restaurant(
 
 pub async fn refuse_order(
     auth: Auth,
-    form: web::Json<CourierToOrder>,
+    form: web::Json<Id>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
-    require!(auth.id == form.courier_id,"not you");
     let conn = conn.get()?;
     let form = form.into_inner();
-    let r = Orders::refuse_order(form.order_id, form.courier_id, &conn).await?;
+    let r = Orders::refuse_order(form.id, auth.id, &conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn take_order(
     auth: Auth,
-    form: web::Json<CourierToOrder>,
+    form: web::Json<Id>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
-    require!(auth.id == form.courier_id,"not you");
     let conn = conn.get()?;
     let form = form.into_inner();
-    let r = Orders::take_order(form.order_id, form.courier_id, &conn).await?;
+    let r = Orders::take_order(form.id, auth.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_orders_by_session_id(
+    auth: Auth,
+    form: web::Json<Id>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let form = form.into_inner();
+    let r = Orders::get_orders_by_session_id(form.id, &conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn pick_order(
     auth: Auth,
-    form: web::Json<CourierToOrder>,
+    form: web::Json<Id>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
-    require!(auth.id == form.courier_id,"not you");
     let conn = conn.get()?;
     let form = form.into_inner();
-    let r = Orders::pick_order(form.order_id, form.courier_id, &conn).await?;
+    let r = Orders::pick_order(form.id, auth.id, &conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn create_session(
     auth: Auth,
-    form: web::Json<NewSession>,
+    mut form: web::Json<NewSession>,
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
-    require!(auth.id == form.courier_id,"not you");
+    form.courier_id = auth.id;
     let conn = conn.get()?;
-    let form = form.into_inner();
     let r = Sessions::new(&form, &conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }

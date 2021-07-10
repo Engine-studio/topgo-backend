@@ -13,9 +13,9 @@ use crate::schema::{
     curators,
     admins,
     restaurants,
-    couriers_to_curators,
+    sessions,
 };
-
+use crate::ordering::db::Sessions;
 #[derive(Serialize,Deserialize,Clone,Queryable,Identifiable)]
 #[table_name = "couriers"]
 #[primary_key(id)]
@@ -54,7 +54,6 @@ pub struct NewCourier {
     pub patronymic: String,
     pub phone: String,
     pub password: String,
-    pub curator_id: i64,
 }
 
 impl Couriers {
@@ -73,13 +72,17 @@ impl Couriers {
                 couriers::pass_hash.eq(make_hash(&creds.password)),
             ))
             .execute(conn)?;
-        diesel::insert_into(couriers_to_curators::table)
-            .values(&(
-                    couriers_to_curators::curator_id.eq(creds.curator_id),
-                    couriers_to_curators::courier_id.eq(id),
-            ))
-            .execute(conn)?;
         Ok(())
+    }
+
+    pub async fn get_session(
+        courier_id: i64,
+        conn: &PgConnection,
+    ) -> Result<Sessions> {
+        let r = sessions::table
+            .filter(sessions::courier_id.eq(courier_id))
+            .get_result::<Sessions>(conn)?;
+        Ok(r)
     }
 
     pub async fn from_id(
@@ -287,6 +290,22 @@ pub struct CouriersForAdmin {
     pub phone: String,
     #[sql_type="Varchar"]
     pub picture: String,
+    #[sql_type="Bool"]
+    pub is_in_order: bool,
+    #[sql_type="Nullable<Bigint>"]
+    pub order_id: Option<i64>,
+    #[sql_type="Nullable<Orderstatus>"]
+    pub order_status: Option<OrderStatus>,
+    #[sql_type="Bool"]
+    pub is_blocked: bool,
+    #[sql_type="Bigint"]
+    pub salary: i64,
+    #[sql_type="Bigint"]
+    pub term: i64,
+    #[sql_type="Bigint"]
+    pub cash: i64,
+    #[sql_type="Bool"]
+    pub is_deleted: bool,
 }
 
 impl CouriersForAdmin {
@@ -306,4 +325,43 @@ pub struct NullMoney {
     pub all: bool,
     pub cash: bool,
     pub card: bool,
+}
+
+#[derive(Serialize,Deserialize,Clone,QueryableByName)]
+pub struct CouriersHistory {
+
+    #[sql_type="Varchar"]
+    pub restaurant_address: String,
+    #[sql_type="Varchar"]
+    pub delivery_address: String,
+    #[sql_type="Time"]
+    pub cooking_time: chrono::NaiveTime,
+    #[sql_type="Paymethod"]
+    pub method: PayMethod,
+    #[sql_type="Bigint"]
+    pub order_price: i64,
+    #[sql_type="Timestamp"]
+    pub take_datetime: chrono::NaiveDateTime,
+    #[sql_type="Timestamp"]
+    pub delivery_datetime: chrono::NaiveDateTime,
+    #[sql_type="Nullable<Bigint>"]
+    pub politeness_rate: Option<i64>,
+    #[sql_type="Nullable<Bigint>"]
+    pub look_rate: Option<i64>,
+    #[sql_type="Bigint"]
+    pub courier_id: i64,
+    #[sql_type="Nullable<Orderstatus>"]
+    pub order_status: Option<OrderStatus>,
+}
+
+impl CouriersHistory {
+    pub async fn get(
+        id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = diesel::sql_query("select * from courier_history where courier_id=$1;") 
+            .bind::<Bigint,_>(id)
+            .get_results(conn)?;
+        Ok(r)
+    }
 }

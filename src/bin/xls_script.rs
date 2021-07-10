@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 use diesel::prelude::*;
 use xlsxwriter::*;
 use diesel::pg::PgConnection;
+use uuid::Uuid;
 
 use diesel::r2d2::ConnectionManager;
 use topgo::schema::couriers;
@@ -20,6 +21,13 @@ use diesel::sql_types::{
     Timestamp,
     Date,
     Nullable,
+};
+
+use topgo::schema::{
+    couriers_xls_reports,
+    couriers_for_curators_xls_reports,
+    restaurants_xls_reports,
+    restaurants_for_curators_xls_reports,
 };
 use topgo::enum_types::*;
 
@@ -191,7 +199,8 @@ fn main() {
         let rows = diesel::sql_query("select * from courier_exel WHERE courier_id=$1")
             .bind::<Bigint,_>(id)
             .get_results::<CourierXLS>(&pool.get().unwrap()).unwrap();
-        let workbook = Workbook::new("summary/test.xlsx");
+        let fname = format!("summary/{}.xlsx",Uuid::new_v4());
+        let workbook = Workbook::new(&fname);
         let mut sheet1 = workbook.add_worksheet(None).unwrap();
             sheet1.write_string(0, 0, "день сессии", None).unwrap();
             sheet1.write_string(0, 1, "время начала сессии", None).unwrap();
@@ -238,6 +247,11 @@ fn main() {
                 }, None).unwrap();
         }
         workbook.close().expect("workbook can be closed");
-
+        diesel::insert_into(couriers_xls_reports::table)
+            .values(&(
+                couriers_xls_reports::courier_id.eq(id),
+                couriers_xls_reports::filename.eq(&fname))
+            )
+            .execute(&pool.get().unwrap()).unwrap();
     }
 }
