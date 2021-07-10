@@ -31,6 +31,10 @@ use super::db::{
     UpdateCourier,
     UpdateCurator,
     UpdateAdmin,
+    CouriersInfo,
+    CouriersForAdmin,
+    RestaurantsInfo,
+    NullMoney,
 };
 
 #[derive(Deserialize)]
@@ -50,6 +54,7 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/new", web::post().to(create_restaurant))
             .route("/delete", web::post().to(delete_restaurant))
             .route("/get_all", web::post().to(get_all_restaurant))
+            .route("/order_info", web::post().to(order_info_restaurant))
         )
         .service(web::scope("/curators")
             .route("/new", web::post().to(create_curator))
@@ -64,8 +69,52 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/delete", web::post().to(delete_courier))
             .route("/toggle_ban", web::post().to(toggle_ban_courier))
             .route("/get_all", web::post().to(get_all_courier))
+            .route("/couriers_for_administration", web::post().to(couriers_for_administration))
+            .route("/get", web::post().to(get_self_courier))
+            .route("/null_money", web::post().to(null_money_couriers))
         )
     );
+}
+
+pub async fn null_money_couriers(
+    auth: Auth,
+    form: web::Json<NullMoney>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"curator".to_string()) ||
+        auth.roles.contains(&"admin".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = Couriers::null_money(&form, &conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+pub async fn order_info_restaurant(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"restaurant".to_string()), "not admin");
+    let conn = conn.get()?;
+    let r = RestaurantsInfo::get_by(auth.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_self_courier(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    let conn = conn.get()?;
+    let r = CouriersInfo::get_by(auth.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn couriers_for_administration(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"curator".to_string()) ||
+        auth.roles.contains(&"admin".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = CouriersForAdmin::get(&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
 }
 
 pub async fn toggle_ban_courier(

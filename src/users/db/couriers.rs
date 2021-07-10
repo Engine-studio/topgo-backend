@@ -92,6 +92,49 @@ impl Couriers {
             .get_result::<Self>(conn)?;
         Ok(r)
     }
+    
+    pub async fn null_money(
+        data: &NullMoney,
+        conn: &PgConnection,
+    ) -> Result<()> {
+        if data.all {
+        diesel::update(couriers::table)
+            .filter(couriers::id.eq(data.courier_id))
+            .filter(couriers::is_deleted.eq(false))
+            .set((
+                couriers::salary.eq(0),
+                couriers::cash.eq(0),
+                couriers::term.eq(0),
+                ))
+            .execute(conn)?;
+        } else if data.salary {
+        diesel::update(couriers::table)
+            .filter(couriers::id.eq(data.courier_id))
+            .filter(couriers::is_deleted.eq(false))
+            .set((
+                couriers::salary.eq(0),
+                ))
+            .execute(conn)?;
+        } else if data.card {
+        diesel::update(couriers::table)
+            .filter(couriers::id.eq(data.courier_id))
+            .filter(couriers::is_deleted.eq(false))
+            .set((
+                couriers::term.eq(0),
+                ))
+            .execute(conn)?;
+        } else if data.cash {
+        diesel::update(couriers::table)
+            .filter(couriers::id.eq(data.courier_id))
+            .filter(couriers::is_deleted.eq(false))
+            .set((
+                couriers::cash.eq(0),
+                ))
+            .execute(conn)?;
+        }
+        Ok(())
+    }
+
 
     pub async fn get(
         creds: &AuthData,
@@ -152,4 +195,115 @@ impl Couriers {
         Ok(r)
     }
 
+}
+
+use diesel::sql_types::*;
+use crate::enum_types::*;
+#[derive(Serialize,Deserialize,Clone,QueryableByName)]
+pub struct CouriersInfo {
+    #[sql_type="Bigint"]
+    pub courier_id: i64,
+    #[sql_type="Varchar"]
+    pub courier_name: String,
+    #[sql_type="Varchar"]
+    pub courier_surname: String,
+    #[sql_type="Varchar"]
+    pub courier_patronymic: String,
+    #[sql_type="Varchar"]
+    pub courier_picture: String,
+    #[sql_type="Varchar"]
+    pub courier_phone: String,
+    #[sql_type="Bigint"]
+    pub courier_current_rate_count: i64,
+    #[sql_type="Bigint"]
+    pub courier_current_rate_ammount: i64,
+    #[sql_type="Bigint"]
+    pub courier_card_balance: i64,
+    #[sql_type="Bigint"]
+    pub courier_salary: i64,
+    #[sql_type="Bigint"]
+    pub courier_cash_balance: i64,
+    #[sql_type="Bool"]
+    pub courier_is_in_order: bool,
+    #[sql_type="Bool"]
+    pub courier_is_warned: bool,
+    #[sql_type="Bool"]
+    pub courier_is_blocked: bool,
+    #[sql_type="Bigint"]
+    pub order_id: i64,
+    #[sql_type="Orderstatus"]
+    pub order_status: OrderStatus,
+    #[sql_type="Bool"]
+    pub is_big_order: bool,
+    #[sql_type="Varchar"]
+    pub delivery_address: String,
+    #[sql_type="Double"]
+    pub address_lng: f64,
+    #[sql_type="Double"]
+    pub address_lat: f64,
+    #[sql_type="Time"]
+    pub cooking_time: chrono::NaiveTime,
+    #[sql_type="Varchar"]
+    pub order_details: String,
+    #[sql_type="Bigint"]
+    pub order_price: i64,
+    #[sql_type="Varchar"]
+    pub client_comment: String,
+    #[sql_type="Varchar"]
+    pub client_phone: String,
+    #[sql_type="Transporttype"]
+    pub transport: TransportType,
+}
+
+impl CouriersInfo {
+    pub async fn get_by(
+        courier_id: i64,
+        conn: &PgConnection,
+    ) -> Result<Self> {
+        let r = diesel::sql_query("select * from courier_info WHERE courier_id=$1;") 
+            .bind::<Bigint,_>(courier_id)
+            .get_result(conn)?;
+        Ok(r)
+    }
+}
+
+#[derive(Serialize,Deserialize,Clone,QueryableByName)]
+pub struct CouriersForAdmin {
+    #[sql_type="Bigint"]
+    pub id: i64,
+    #[sql_type="Varchar"]
+    pub name: String,
+    #[sql_type="Varchar"]
+    pub surname: String,
+    #[sql_type="Varchar"]
+    pub patronymic: String,
+    #[sql_type="Transporttype"]
+    pub transport: TransportType,
+    #[sql_type="Bigint"]
+    pub current_rate_count: i64,
+    #[sql_type="Bigint"]
+    pub current_rate_ammount: i64,
+    #[sql_type="Varchar"]
+    pub phone: String,
+    #[sql_type="Varchar"]
+    pub picture: String,
+}
+
+impl CouriersForAdmin {
+    pub async fn get(
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = diesel::sql_query("select * from courier_for_admin;") 
+            .get_results(conn)?;
+        Ok(r)
+    }
+}
+
+#[derive(Serialize,Deserialize)]
+pub struct NullMoney {
+    pub courier_id: i64,
+    pub salary: bool,
+    pub all: bool,
+    pub cash: bool,
+    pub card: bool,
 }

@@ -132,6 +132,7 @@ pub struct Orders {
     pub finalize_comment: Option<String>,
     pub finalize_datetime: Option<chrono::NaiveDateTime>,
     pub take_datetime: Option<chrono::NaiveDateTime>,
+    pub delivery_datetime: Option<chrono::NaiveDateTime>,
     pub creation_datetime: chrono::NaiveDateTime,
 }
 
@@ -280,6 +281,7 @@ pub struct Sessions {
    pub end_time: chrono::NaiveTime,
    pub session_day: chrono::NaiveDate,
    pub end_real_time: Option<chrono::NaiveTime>,
+   pub has_terminal: bool,
    pub transport: TransportType,
 }
 

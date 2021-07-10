@@ -44,12 +44,6 @@ CREATE TABLE couriers (
     creation_datetime   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE couriers_to_curators (
-    id                  BIGSERIAL   PRIMARY KEY,
-    courier_id          BIGINT      REFERENCES couriers(id),
-    curator_id          BIGINT      REFERENCES curators(id)
-);
-
 CREATE TABLE admins (
     id                  BIGSERIAL   PRIMARY KEY,
     name                VARCHAR     NOT NULL,
@@ -108,8 +102,12 @@ CREATE TABLE sessions (
     start_time          TIME            NOT NULL,
     end_time            TIME            NOT NULL,
     session_day         DATE            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    end_real_time       TIME,
+    has_terminal        BOOLEAN         NOT NULL DEFAULT FALSE,
     transport           TransportType  NOT NULL DEFAULT 'Feet'
 );
+DROP TABLE orders cascade
+;
 
 CREATE TABLE orders (
     id                  BIGSERIAL       PRIMARY KEY,
@@ -130,6 +128,7 @@ CREATE TABLE orders (
     finalize_comment    VARCHAR,
     finalize_datetime   TIMESTAMP,
     take_datetime       TIMESTAMP,
+    delivery_datetime   TIMESTAMP,
     creation_datetime   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -150,6 +149,7 @@ CREATE TABLE couriers_approvals (
 
 CREATE TABLE notifications (
     id                  BIGSERIAL       PRIMARY KEY,
+    title               VARCHAR         NOT NULL,
     message             VARCHAR         NOT NULL,
     creation_datetime   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -160,10 +160,21 @@ CREATE TABLE notifications_to_couriers (
     notific_id          BIGSERIAL       REFERENCES notifications(id) ON DELETE SET NULL
 );
 
+CREATE TABLE reports (
+    id                  BIGSERIAL       PRIMARY KEY,
+    report_type         VARCHAR         NOT NULL,
+    filename            VARCHAR         NOT NULL UNIQUE,
+    creation_date       TIMESTAMP       NOT NULL DEFAULT CURRENT_DATE
+);
+
 SELECT * FROM get_notification(4);
+
 create or replace function get_notification(
     arg_courier_id BIGINT
-) returns TABLE (message VARCHAR)
+) returns TABLE (
+    title VARCHAR,
+    message VARCHAR
+                )
 language plpgsql
 as $$
 declare
@@ -178,7 +189,7 @@ begin
     INTO notif;
     INSERT INTO notifications_to_couriers (courier_id,notific_id)
         SELECT arg_courier_id, notifications.id FROM notifications WHERE notifications.id=ANY(notif);
-    return QUERY SELECT notifications.message FROM notifications WHERE notifications.id=ANY(notif);
+    return QUERY SELECT notifications.title, notifications.message FROM notifications WHERE notifications.id=ANY(notif);
 end;$$;
 
 CREATE OR REPLACE FUNCTION ban_couriers()
@@ -241,6 +252,8 @@ as $$ begin
         CURRENT_TIMESTAMP > couriers_approvals.datetime + (5 ||' minutes')::interval AND not couriers.is_in_order);
     DELETE FROM couriers_approvals WHERE courier_id IN (SELECT courier_id FROM couriers_approvals WHERE
         CURRENT_TIMESTAMP > couriers_approvals.datetime + (5 ||' minutes')::interval);
+    UPDATE sessions SET end_real_time=CURRENT_TIMESTAMP
+        WHERE end_time > CURRENT_TIMESTAMP AND end_real_time IS NULL AND session_day <= CURRENT_DATE;
 end;$$;
 
 select * FROM find_suitable_orders(0,0,3);
@@ -277,6 +290,9 @@ begin
             JOIN restaurants r on orders.restaurant_id = r.id
         WHERE status='CourierFinding' and
               (CASE WHEN not courier_session.transport='Car' THEN orders.is_big_order=false
+		        ELSE TRUE
+	        END) and
+            (CASE WHEN not courier_session.has_terminal=false THEN orders.method!='Card'
 		        ELSE TRUE
 	        END)
         GROUP BY orders.id,r.location_lat,r.location_lng
@@ -380,17 +396,35 @@ as $$begin
 end;$$;
 
 create or replace function set_delivered(
-    arg_order_id BIGINT,
-    arg_courier_id BIGINT
+    arg_order_id BIGINT
 ) returns void
 language plpgsql
 as $$begin
     UPDATE
         orders
     SET
-        status='Delivered'
+        status='Delivered',
+        delivery_datetime=CURRENT_TIMESTAMP
     WHERE
         id=arg_order_id AND status='Delivering';
+    return;
+end;$$;
+
+create or replace function end_session(
+    arg_order_id BIGINT
+) returns void
+language plpgsql
+as $$
+    declare
+        session_id bigint := (SELECT id FROM sessions
+            WHERE end_real_time IS NULL AND courier_id = arg_order_id);
+    begin
+    UPDATE
+        sessions
+    SET
+        end_real_time = CURRENT_TIME
+    WHERE
+        sessions.id = session_id;
     return;
 end;$$;
 
@@ -445,3 +479,206 @@ begin
         WHERE s.courier_id=var_courier.id);
     return;
 end;$$;
+
+CREATE OR REPLACE VIEW courier_for_admin AS
+    SELECT
+        c.id as id,
+        c.name as name,
+        c.surname as surname,
+        c.patronymic as patronymic,
+        s.transport,
+        c.current_rate_count,
+        c.current_rate_amount,
+        c.phone,
+        c.picture
+    FROM couriers c
+        LEFT JOIN sessions s on c.id = s.courier_id and s.end_real_time is null
+        JOIN orders o on s.id = o.session_id;
+
+CREATE OR REPLACE VIEW courier_info AS
+    SELECT
+        c.id as courier_id,
+        c.name as courier_name,
+        c.surname as courier_surname,
+        c.patronymic as courier_patronymic,
+        c.picture as courier_picture,
+        c.phone as courier_phone,
+        c.current_rate_count as courier_current_rate_count,
+        c.current_rate_amount as courier_current_rate_ammount,
+        c.term as courier_card_balance,
+        c.salary as courier_salary,
+        c.cash as courier_cash_balance,
+        c.is_in_order as courier_is_in_order,
+        c.is_warned as courier_is_warned,
+        c.is_blocked as courier_is_blocked,
+        o.id as order_id,
+        o.status as order_status,
+        o.is_big_order as is_big_order,
+        o.delivery_address as delivery_address,
+        o.address_lng,
+        o.address_lat,
+        o.cooking_time,
+        o.details as order_details,
+        o.order_price,
+        o.client_comment,
+        o.client_phone,
+        s.transport
+    FROM couriers c
+        LEFT JOIN sessions s on c.id = s.courier_id and s.end_real_time is null
+        JOIN orders o on s.id = o.session_id;
+
+select * from courier_for_admin;
+select * from courier_info WHERE courier_id=$1;
+
+
+CREATE OR REPLACE VIEW restaurant_info AS
+    SELECT
+        o.id as order_id,
+        o.client_phone,
+        o.client_comment,
+        o.order_price,
+        o.details,
+        o.cooking_time,
+        o.address_lat,
+        o.address_lng,
+        o.delivery_address,
+        o.is_big_order,
+        o.status,
+        o.method,
+        c.id as courier_id,
+        c.name as courier_name,
+        c.surname as courier_surname,
+        c.patronymic as courier_pathronymic,
+        c.phone as courier_phone,
+        c.current_rate_amount as courier_rate_amount,
+        c.current_rate_count as courier_rate_count,
+        c.picture as courier_picture,
+        o.restaurant_id
+    FROM orders o
+        JOIN sessions s on o.session_id = s.id
+        JOIN couriers c on s.courier_id = c.id
+    WHERE status!=ANY('{Success,FailureByCourier,FailureByRestaurant}')
+    ORDER BY o.creation_datetime;
+
+SELECT * FROM restaurant_info WHERE restaurant_id=$1;
+
+
+CREATE OR REPLACE VIEW
+    get_random_curator AS
+SELECT * FROM curators ORDER BY random() LIMIT 1;
+SELECT * FROM get_random_curator;
+
+CREATE OR REPLACE VIEW
+    courier_history AS
+    SELECT
+        r.address as restaurant_address,
+        o.delivery_address as delivery_address,
+        o.cooking_time as cooking_time,
+        o.method as pay_method,
+        o.order_price as price,
+        o.take_datetime,
+        o.delivery_datetime,
+        cr.politeness as politness_rate,
+        cr.look as look_rate
+    FROM orders o
+        JOIN courier_rating cr on o.id = cr.order_id
+        JOIN restaurants r on o.restaurant_id = r.id;
+
+CREATE OR REPLACE VIEW
+    courier_exel AS
+    SELECT
+        s.session_day,
+        s.start_time,
+        s.end_real_time,
+        o.id as order_id,
+        o.take_datetime as take_datetime,
+        o.status as order_status,
+        o.details,
+        o.is_big_order,
+        o.cooking_time,
+        o.delivery_datetime,
+        o.courier_share - 1500 as courier_salary,
+        o.order_price,
+        o.delivery_address,
+        o.client_comment,
+        o.method
+    FROM orders o
+        JOIN sessions s ON o.session_id = s.id
+    WHERE
+        o.status = ANY('{Success,FailureByCourier,FailureByRestaurant}');
+
+DROP VIEW courier_for_curator_exel;
+CREATE OR REPLACE VIEW
+
+    courier_for_curator_exel AS
+    SELECT
+        c.phone,
+        c.name,
+        c.surname,
+        c.patronymic,
+        s.session_day,
+        s.start_time,
+        s.end_real_time,
+        o.id as order_id,
+        o.take_datetime as take_datetime,
+        o.status as order_status,
+        o.details,
+        o.is_big_order,
+        o.cooking_time,
+        o.delivery_datetime,
+        o.courier_share - 1500 as courier_salary,
+        o.courier_share as delivery_cost,
+        o.order_price,
+        o.delivery_address,
+        o.client_comment,
+        o.method
+    FROM orders o
+        JOIN sessions s ON o.session_id = s.id
+        JOIN couriers c ON c.id = s.courier_id
+    WHERE
+        o.status = ANY('{Success,FailureByCourier,FailureByRestaurant}');
+
+DROP VIEW  restaurant_exel;
+CREATE OR REPLACE VIEW
+    restaurant_exel AS
+    SELECT
+        o.id as order_id,
+        o.take_datetime as take_datetime,
+        o.status as order_status,
+        o.details,
+        o.is_big_order,
+        o.cooking_time,
+        o.delivery_datetime,
+        o.order_price,
+        o.delivery_address,
+        o.client_comment,
+        o.client_phone,
+        o.method
+    FROM orders o
+    WHERE
+        o.status = ANY('{Success,FailureByCourier,FailureByRestaurant}');
+
+CREATE OR REPLACE VIEW
+    restaurant_for_curator_exel AS
+    SELECT
+        r.name,
+        r.phone,
+        r.address,
+        o.id as order_id,
+        o.take_datetime as take_datetime,
+        o.status as order_status,
+        o.details,
+        o.is_big_order,
+        o.cooking_time,
+        o.delivery_datetime,
+        o.order_price,
+        o.delivery_address,
+        o.client_comment,
+        o.client_phone,
+        o.method
+    FROM orders o
+        JOIN restaurants r ON r.id = o.restaurant_id
+    WHERE
+        o.status = ANY('{Success,FailureByCourier,FailureByRestaurant}');
+
+

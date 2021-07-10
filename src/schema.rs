@@ -151,6 +151,7 @@ table! {
         finalize_comment -> Nullable<Varchar>,
         finalize_datetime -> Nullable<Timestamp>,
         take_datetime -> Nullable<Timestamp>,
+        delivery_datetime -> Nullable<Timestamp>,
         creation_datetime -> Timestamp,
     }
 }
@@ -163,6 +164,18 @@ table! {
         id -> Int8,
         url -> Varchar,
         upload -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::enum_types::*;
+
+    reports (id) {
+        id -> Int8,
+        report_type -> Varchar,
+        filename -> Varchar,
+        creation_date -> Timestamp,
     }
 }
 
@@ -197,14 +210,13 @@ table! {
         end_time -> Time,
         session_day -> Date,
         end_real_time -> Nullable<Time>,
+        has_terminal -> Bool,
         transport -> Transporttype,
     }
 }
 
 joinable!(courier_rating -> couriers (courier_id));
-joinable!(courier_rating -> orders (order_id));
 joinable!(couriers_approvals -> couriers (courier_id));
-joinable!(couriers_approvals -> orders (order_id));
 joinable!(couriers_to_curators -> couriers (courier_id));
 joinable!(couriers_to_curators -> curators (curator_id));
 joinable!(notifications_to_couriers -> couriers (courier_id));
@@ -223,6 +235,7 @@ allow_tables_to_appear_in_same_query!(
     notifications_to_couriers,
     orders,
     pending_files,
+    reports,
     restaurants,
     sessions,
 );

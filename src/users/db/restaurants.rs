@@ -130,3 +130,63 @@ impl Restaurants {
         Ok(r)
     }
 }
+
+use diesel::sql_types::*;
+use crate::enum_types::*;
+#[derive(Serialize,Deserialize,Clone,QueryableByName)]
+pub struct RestaurantsInfo {
+    #[sql_type="Bigint"]
+    pub order_id: i64,
+    #[sql_type="Varchar"]
+    pub client_phone: String,
+    #[sql_type="Varchar"]
+    pub client_comment: String,
+    #[sql_type="Bigint"]
+    pub order_price: i64,
+    #[sql_type="Varchar"]
+    pub details: String,
+    #[sql_type="Time"]
+    pub cooking_time: chrono::NaiveTime,
+    #[sql_type="Double"]
+    pub address_lat: f64,
+    #[sql_type="Double"]
+    pub address_lng: f64,
+    #[sql_type="Varchar"]
+    pub delivery_address: String,
+    #[sql_type="Bool"]
+    pub is_big_order: bool,
+    #[sql_type="Orderstatus"]
+    pub status: OrderStatus,
+    #[sql_type="Paymethod"]
+    pub method: PayMethod,
+    #[sql_type="Bigint"]
+    pub courier_id: i64,
+    #[sql_type="Varchar"]
+    pub courier_name: String,
+    #[sql_type="Varchar"]
+    pub courier_surname: String,
+    #[sql_type="Varchar"]
+    pub courier_patronymic: String,
+    #[sql_type="Varchar"]
+    pub courier_phone: String,
+    #[sql_type="Bigint"]
+    pub courier_rate_amount: i64,
+    #[sql_type="Bigint"]
+    pub courier_rate_count: i64,
+    #[sql_type="Varchar"]
+    pub courier_picture: String,
+    #[sql_type="Bigint"]
+    pub restaurant_id: i64,
+}
+
+impl RestaurantsInfo {
+    pub async fn get_by(
+        restaurant_id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = diesel::sql_query("SELECT * FROM restaurant_info WHERE restaurant_id=$1;") 
+            .bind::<Bigint,_>(restaurant_id)
+            .get_results(conn)?;
+        Ok(r)
+    }
+}
