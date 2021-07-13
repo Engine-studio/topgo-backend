@@ -280,16 +280,16 @@ pub struct CouriersForAdmin {
     pub surname: String,
     #[sql_type="Varchar"]
     pub patronymic: String,
-    #[sql_type="Transporttype"]
-    pub transport: TransportType,
+    #[sql_type="Nullable<Transporttype>"]
+    pub transport: Option<TransportType>,
     #[sql_type="Bigint"]
     pub current_rate_count: i64,
     #[sql_type="Bigint"]
-    pub current_rate_ammount: i64,
+    pub current_rate_amount: i64,
     #[sql_type="Varchar"]
     pub phone: String,
-    #[sql_type="Varchar"]
-    pub picture: String,
+    #[sql_type="Nullable<Varchar>"]
+    pub picture: Option<String>,
     #[sql_type="Bool"]
     pub is_in_order: bool,
     #[sql_type="Nullable<Bigint>"]
@@ -306,6 +306,8 @@ pub struct CouriersForAdmin {
     pub cash: i64,
     #[sql_type="Bool"]
     pub is_deleted: bool,
+    #[sql_type="Bool"]
+    pub is_in_session: bool,
 }
 
 impl CouriersForAdmin {

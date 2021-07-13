@@ -75,6 +75,12 @@ services:
     networks:
       - app-network
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+  cron:
+    image: badconfig/topgo_cron
+    container_name: cron
+    restart: unless-stopped
+    networks:
+      - app-network
 volumes:
   pg_topgo:
   redis_topgo:

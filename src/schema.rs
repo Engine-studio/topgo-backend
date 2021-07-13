@@ -83,7 +83,6 @@ table! {
 
     couriers_for_curators_xls_reports (id) {
         id -> Int8,
-        report_type -> Varchar,
         filename -> Varchar,
         creation_date -> Date,
     }
@@ -95,8 +94,7 @@ table! {
 
     couriers_xls_reports (id) {
         id -> Int8,
-        report_type -> Varchar,
-        courier_id -> Nullable<Int8>,
+        courier_id -> Int8,
         filename -> Varchar,
         creation_date -> Date,
     }
@@ -207,7 +205,6 @@ table! {
 
     restaurants_for_curators_xls_reports (id) {
         id -> Int8,
-        report_type -> Varchar,
         filename -> Varchar,
         creation_date -> Date,
     }
@@ -219,8 +216,7 @@ table! {
 
     restaurants_xls_reports (id) {
         id -> Int8,
-        report_type -> Varchar,
-        restaurant_id -> Nullable<Int8>,
+        restaurant_id -> Int8,
         filename -> Varchar,
         creation_date -> Date,
     }

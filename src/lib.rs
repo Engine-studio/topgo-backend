@@ -12,3 +12,4 @@ pub mod enum_types;
 pub mod form;
 pub mod temp;
 pub mod ordering;
+pub mod reports;

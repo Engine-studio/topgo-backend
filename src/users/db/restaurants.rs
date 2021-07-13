@@ -58,21 +58,41 @@ impl Restaurants {
         conn: &PgConnection,
     ) -> Result<()> {
         use serde_json::Value;
-        //let req: Vec<String> = creds.address.split_whitespace();
-        //let req = req.join("+"); //let req = "https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}"
-        //let req = "https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}" .await?
-          //  .json()
-         //   .await?;
+        let url = "http://search.maps.sputnik.ru/search/addr?q=".to_owned() + 
+            &creds.address;
+        let resp: Value = reqwest::get(&url)
+            .await?
+            .json()
+            .await?;
+        let coords = resp["result"]["address"][0]["features"][0]
+            ["geometry"]["geometries"][0]["coordinates"]
+                .as_array()
+                .ok_or_else(||ApiError {
+                    code: 500,
+                    message: "error in getting coords from json".to_string(),
+                    error_type: ErrorType::InternalError,
+                })?;
+        let lng = coords[0].as_f64().ok_or_else(|| ApiError {
+                code: 500,
+                message: "error in getting coords from json".to_string(),
+                error_type: ErrorType::InternalError,
+            })?;
+        let lat = coords[1].as_f64().ok_or_else(|| ApiError {
+                code: 500,
+                message: "error in getting coords from json".to_string(),
+                error_type: ErrorType::InternalError,
+            })?;
         diesel::insert_into(restaurants::table)
             .values(&(
                 restaurants::id.eq(&id),
                 restaurants::name.eq(&creds.name),
                 restaurants::phone.eq(&creds.phone),
                 restaurants::pass_hash.eq(make_hash(&creds.password)),
-                restaurants::location_lng.eq(37.168950),
-                restaurants::location_lat.eq(55.979094),
+                restaurants::location_lng.eq(lng),
+                restaurants::location_lat.eq(lat),
                 restaurants::working_from.eq(&creds.working_from),
                 restaurants::working_till.eq(&creds.working_till),
+                restaurants::address.eq(&creds.address),
             ))
             .execute(conn)?;
         Ok(())
