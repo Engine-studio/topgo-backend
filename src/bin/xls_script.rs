@@ -203,21 +203,21 @@ async fn main() {
     let pool = Arc::new(pool);
 
     let p = pool.clone();
-    sched.add(Job::new("0 1 * * *", move |uuid, l| {
+    sched.add(Job::new("0 1 * * * *", move |uuid, l| {
         println!("every day task");
         proc_couriers_for_them(p.clone());
         proc_couriers_for_curators(p.clone());
     }).unwrap());
 
     let p = pool.clone();
-    sched.add(Job::new("0 1 * * 1", move |uuid, l| {
+    sched.add(Job::new("0 1 * * 1 *", move |uuid, l| {
         println!("every week task");
         proc_restaurants_for_curators(p.clone()); 
         proc_restaurants(p.clone()); 
     }).unwrap());
 
     let p = pool.clone();
-    sched.add(Job::new("1/60 * * * * *", move |uuid, l| {
+    sched.add(Job::new("1 * * * * *", move |uuid, l| {
         println!("every min task");
         diesel::sql_query("select * from process_approvals();")
             .execute(&p.get().unwrap()).unwrap();
