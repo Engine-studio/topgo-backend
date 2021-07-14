@@ -58,6 +58,7 @@ services:
       - ./data/certbot/www:/var/www/certbot
       - ./html:/var/tools
       - ./static:/var/tools/static
+      - ./summary:/var/tools/summary
     ports:
       - "80:80"
       - "443:443"
