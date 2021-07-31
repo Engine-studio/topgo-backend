@@ -62,6 +62,7 @@ table! {
         term -> Int8,
         salary -> Int8,
         creation_datetime -> Timestamp,
+        email -> Varchar,
     }
 }
 
@@ -94,7 +95,7 @@ table! {
 
     couriers_xls_reports (id) {
         id -> Int8,
-        courier_id -> Int8,
+        courier_id -> Nullable<Int8>,
         filename -> Varchar,
         creation_date -> Date,
     }
@@ -196,6 +197,7 @@ table! {
         is_working -> Bool,
         is_deleted -> Bool,
         creation_datetime -> Timestamp,
+        email -> Varchar,
     }
 }
 
@@ -216,7 +218,7 @@ table! {
 
     restaurants_xls_reports (id) {
         id -> Int8,
-        restaurant_id -> Int8,
+        restaurant_id -> Nullable<Int8>,
         filename -> Varchar,
         creation_date -> Date,
     }

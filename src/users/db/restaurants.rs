@@ -30,6 +30,7 @@ pub struct Restaurants {
     pub is_working: bool,
     pub is_deleted: bool,
     pub creation_datetime: chrono::NaiveDateTime,
+    pub email: String,
 }
 
 #[derive(Serialize,Deserialize,Clone,AsChangeset,Queryable,Identifiable)]
@@ -49,9 +50,76 @@ pub struct NewRestaurant {
     pub password: String,
     pub working_from: Vec<chrono::NaiveTime>,
     pub working_till: Vec<chrono::NaiveTime>,
+    pub email: String,
 }
 
 impl Restaurants {
+    pub async fn check_mail(cour: &NewRestaurant) -> Result<()>  {
+        
+        use lettre::transport::smtp::authentication::Credentials;
+        use lettre::{Message, SmtpTransport, Transport};
+        use lettre::message::{header, MultiPart, SinglePart};
+
+        let html = format!(r#"<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Hello from Lettre!</title>
+    </head>
+    <body>
+        <p>Здравствуйте, {}<p><br/>
+        <p>Вы успешно зарегестрированы в сервисе topgo<p><br/>
+    </body>
+    </html>"#,cour.name);
+
+        println!("msg {}",html);
+        let email = Message::builder()
+        .from("noreply@topgo.club".parse().unwrap())
+        .to(cour.email.parse().unwrap())
+        .subject("New Request")
+        .multipart(
+                MultiPart::alternative() // This is composed of two parts.
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(header::ContentType::parse("text/plain; charset=utf8")
+                                .unwrap())
+                            .body("вы успешно зарегестрированы в сервисе topgo".to_string())
+                            // Every message should have a plain text fallback.
+                    )
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(header::ContentType::parse(
+                                "text/html; charset=utf8").unwrap())
+                            .body(html.to_string()),
+                    ),
+        ).map_err(|e| {
+            ApiError {
+                code: 500,
+                message: "err building msg".to_string(),
+                error_type: ErrorType::InternalError,
+            }
+        })?;
+
+        let creds = Credentials::new("topgo-noreply@yandex.ru".to_string(), 
+            "2XkkLGRceLK".to_string());
+
+        // Open a remote connection to gmail
+        let mailer = SmtpTransport::relay("smtp-pulse.com")
+            .unwrap()
+            .credentials(creds)
+            .build();   
+
+        // Send the email
+        let _ = mailer.send(&email).map_err(|e|{
+            ApiError {
+                code: 500,
+                message: "err sending msg".to_string(),
+                error_type: ErrorType::InternalError,
+            }
+        })?;
+        Ok(())
+    }
     pub async fn new(
         creds: &NewRestaurant, 
         id: i64,
@@ -82,6 +150,7 @@ impl Restaurants {
                 message: "error in getting coords from json".to_string(),
                 error_type: ErrorType::InternalError,
             })?;
+        Self::check_mail(&creds).await?;
         diesel::insert_into(restaurants::table)
             .values(&(
                 restaurants::id.eq(&id),
@@ -93,6 +162,7 @@ impl Restaurants {
                 restaurants::working_from.eq(&creds.working_from),
                 restaurants::working_till.eq(&creds.working_till),
                 restaurants::address.eq(&creds.address),
+                restaurants::email.eq(&creds.email),
             ))
             .execute(conn)?;
         Ok(())
@@ -184,32 +254,41 @@ pub struct RestaurantsInfo {
     pub status: OrderStatus,
     #[sql_type="Paymethod"]
     pub method: PayMethod,
-    #[sql_type="Bigint"]
-    pub courier_id: i64,
-    #[sql_type="Varchar"]
-    pub courier_name: String,
-    #[sql_type="Varchar"]
-    pub courier_surname: String,
-    #[sql_type="Varchar"]
-    pub courier_patronymic: String,
-    #[sql_type="Varchar"]
-    pub courier_phone: String,
-    #[sql_type="Bigint"]
-    pub courier_rate_amount: i64,
-    #[sql_type="Bigint"]
-    pub courier_rate_count: i64,
-    #[sql_type="Varchar"]
-    pub courier_picture: String,
+    #[sql_type="Nullable<Bigint>"]
+    pub courier_id: Option<i64>,
+    #[sql_type="Nullable<Varchar>"]
+    pub courier_name: Option<String>,
+    #[sql_type="Nullable<Varchar>"]
+    pub courier_surname: Option<String>,
+    #[sql_type="Nullable<Varchar>"]
+    pub courier_patronymic: Option<String>,
+    #[sql_type="Nullable<Varchar>"]
+    pub courier_phone: Option<String>,
+    #[sql_type="Nullable<Bigint>"]
+    pub courier_rate_amount: Option<i64>,
+    #[sql_type="Nullable<Bigint>"]
+    pub courier_rate_count: Option<i64>,
+    #[sql_type="Nullable<Varchar>"]
+    pub courier_picture: Option<String>,
     #[sql_type="Bigint"]
     pub restaurant_id: i64,
 }
 
 impl RestaurantsInfo {
+    pub async fn get_history_by(
+        restaurant_id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = diesel::sql_query("SELECT * FROM restaurant_info WHERE restaurant_id=$1 and status = ANY('{Success,FailureByCourier,FailureByRestaurant}');") 
+            .bind::<Bigint,_>(restaurant_id)
+            .get_results(conn)?;
+        Ok(r)
+    }
     pub async fn get_by(
         restaurant_id: i64,
         conn: &PgConnection,
     ) -> Result<Vec<Self>> {
-        let r = diesel::sql_query("SELECT * FROM restaurant_info WHERE restaurant_id=$1;") 
+        let r = diesel::sql_query("SELECT * FROM restaurant_info WHERE restaurant_id=$1 and status = ANY('{CourierFinding,CourierConfirmation,Cooking,ReadyForDelivery,Delivering,Delivered}');") 
             .bind::<Bigint,_>(restaurant_id)
             .get_results(conn)?;
         Ok(r)

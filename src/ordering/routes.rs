@@ -56,7 +56,83 @@ pub fn ordering_routes(cfg: &mut web::ServiceConfig) {
         .route("/get_session", web::post().to(get_session))
         .route("/get_orders_by_session_id", web::post().to(get_orders_by_session_id))
         .route("/get_orders_by_couriers_id", web::post().to(get_orders_by_couriers_id))
+        .route("/get_coords_by_address", web::post().to(get_coords_by_address))
+        .route("/get_route_cost", web::post().to(get_distance_pay))
     );
+}
+
+#[derive(Deserialize)]
+pub struct Dist {
+    from_lat: f64,
+    from_lng: f64,
+    to_lat: f64,
+    to_lng: f64,
+}
+
+pub async fn get_distance_pay(
+    auth: Auth,
+    data: web::Json<Dist>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+        use serde_json::Value;
+        let url = format!(
+            "http://routes.maps.sputnik.ru/osrm/router/viaroute?loc={},{}&loc={},{}",
+            data.from_lat,data.from_lng,data.to_lat,data.to_lng); 
+        let resp: Value = reqwest::get(&url)
+            .await?
+            .json()
+            .await?;
+        let dist = resp["route_summary"]["total_distance"]
+                .as_i64()
+                .ok_or_else(||ApiError {
+                    code: 500,
+                    message: "error in getting coords from json".to_string(),
+                    error_type: ErrorType::InternalError,
+                })?;
+        Ok(HttpResponse::Ok().json(json!({
+            "cost": dist
+        })))
+}
+
+#[derive(Deserialize)]
+pub struct Address {
+    address: String,
+}
+
+pub async fn get_coords_by_address(
+    auth: Auth,
+    data: web::Json<Address>,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+        use serde_json::Value;
+        let url = "http://search.maps.sputnik.ru/search/addr?q=".to_owned() + 
+            &data.address;
+        let resp: Value = reqwest::get(&url)
+            .await?
+            .json()
+            .await?;
+        let coords = resp["result"]["address"][0]["features"][0]
+            ["geometry"]["geometries"][0]["coordinates"]
+                .as_array()
+                .ok_or_else(||ApiError {
+                    code: 500,
+                    message: "error in getting coords from json".to_string(),
+                    error_type: ErrorType::InternalError,
+                })?;
+        let lng = coords[0].as_f64().ok_or_else(|| ApiError {
+                code: 500,
+                message: "error in getting coords from json".to_string(),
+                error_type: ErrorType::InternalError,
+            })?;
+        let lat = coords[1].as_f64().ok_or_else(|| ApiError {
+                code: 500,
+                message: "error in getting coords from json".to_string(),
+                error_type: ErrorType::InternalError,
+            })?;
+        Ok(HttpResponse::Ok().json(json!({
+            "lat": lat,
+            "lng": lng,
+        })))
 }
 
 pub async fn get_orders_by_couriers_id(

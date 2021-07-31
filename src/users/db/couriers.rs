@@ -37,6 +37,7 @@ pub struct Couriers {
     pub term: i64,
     pub salary: i64,
     pub creation_datetime: chrono::NaiveDateTime,
+    pub email: String,
 }
 
 #[derive(Serialize,Deserialize,Clone,AsChangeset,Queryable,Identifiable)]
@@ -54,14 +55,82 @@ pub struct NewCourier {
     pub patronymic: String,
     pub phone: String,
     pub password: String,
+    pub email: String,
 }
 
 impl Couriers {
+    pub async fn check_mail(cour: &NewCourier) -> Result<()>  {
+        
+        use lettre::transport::smtp::authentication::Credentials;
+        use lettre::{Message, SmtpTransport, Transport};
+        use lettre::message::{header, MultiPart, SinglePart};
+
+        let html = format!(r#"<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Hello from Lettre!</title>
+    </head>
+    <body>
+        <p>Здравствуйте, {} {} {}<p><br/>
+        <p>Вы успешно зарегестрированы в сервисе topgo<p><br/>
+    </body>
+    </html>"#,cour.surname,cour.name,cour.patronymic);
+
+        println!("msg {}",html);
+        let email = Message::builder()
+        .from("noreply@topgo.club".parse().unwrap())
+        .to(cour.email.parse().unwrap())
+        .subject("New Request")
+        .multipart(
+                MultiPart::alternative() // This is composed of two parts.
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(header::ContentType::parse("text/plain; charset=utf8")
+                                .unwrap())
+                            .body("вы успешно зарегестрированы в сервисе topgo".to_string())
+                            // Every message should have a plain text fallback.
+                    )
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(header::ContentType::parse(
+                                "text/html; charset=utf8").unwrap())
+                            .body(html.to_string()),
+                    ),
+        ).map_err(|e| {
+            ApiError {
+                code: 500,
+                message: "err building msg".to_string(),
+                error_type: ErrorType::InternalError,
+            }
+        })?;
+
+        let creds = Credentials::new("topgo-noreply@yandex.ru".to_string(), 
+            "2XkkLGRceLK".to_string());
+
+        // Open a remote connection to gmail
+        let mailer = SmtpTransport::relay("smtp-pulse.com")
+            .unwrap()
+            .credentials(creds)
+            .build();   
+
+        // Send the email
+        let _ = mailer.send(&email).map_err(|e|{
+            ApiError {
+                code: 500,
+                message: "err sending msg".to_string(),
+                error_type: ErrorType::InternalError,
+            }
+        })?;
+        Ok(())
+    }
     pub async fn new(
         creds: &NewCourier, 
         id: i64,
         conn: &PgConnection,
     ) -> Result<()> {
+        Self::check_mail(&creds).await?;
         diesel::insert_into(couriers::table)
             .values(&(
                 couriers::id.eq(&id),
@@ -69,6 +138,7 @@ impl Couriers {
                 couriers::surname.eq(&creds.surname),
                 couriers::patronymic.eq(&creds.patronymic),
                 couriers::phone.eq(&creds.phone),
+                couriers::email.eq(&creds.email),
                 couriers::pass_hash.eq(make_hash(&creds.password)),
             ))
             .execute(conn)?;

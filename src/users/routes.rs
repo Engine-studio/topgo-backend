@@ -56,6 +56,7 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/delete", web::post().to(delete_restaurant))
             .route("/get_all", web::post().to(get_all_restaurant))
             .route("/order_info", web::post().to(order_info_restaurant))
+            .route("/order_history", web::post().to(order_history_restaurant))
         )
         .service(web::scope("/curators")
             .route("/new", web::post().to(create_curator))
@@ -78,6 +79,34 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
     );
 }
 
+pub async fn order_history_restaurant(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+    redis_conn: web::Data<RedisDbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"restaurant".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let r = RestaurantsInfo::get_history_by(auth.id, &conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn order_info_restaurant(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+    redis_conn: web::Data<RedisDbPool>,
+) -> Result<HttpResponse> {
+    require!(auth.roles.contains(&"restaurant".to_string()),"not permitted"); 
+    let conn = conn.get()?;
+    let mut redis_conn = redis_conn.get()?;
+    let r = RestaurantsInfo::get_by(auth.id, &conn).await?;
+    use crate::temp::db::get_coords;
+    let c = get_coords(&mut redis_conn).await?;
+    Ok(HttpResponse::Ok().json(json!({
+            "orders": r,
+            "coords": c,
+    })))
+}
+
 pub async fn null_money_couriers(
     auth: Auth,
     form: web::Json<NullMoney>,
@@ -87,15 +116,6 @@ pub async fn null_money_couriers(
         auth.roles.contains(&"admin".to_string()),"not permitted"); 
     let conn = conn.get()?;
     let r = Couriers::null_money(&form, &conn).await?;
-    Ok(HttpResponse::Ok().json(r))
-}
-pub async fn order_info_restaurant(
-    auth: Auth,
-    conn: web::Data<DbPool>,
-) -> Result<HttpResponse> {
-    require!(auth.roles.contains(&"restaurant".to_string()), "not admin");
-    let conn = conn.get()?;
-    let r = RestaurantsInfo::get_by(auth.id, &conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 
@@ -249,7 +269,7 @@ pub async fn create_restaurant(
     let conn = conn.get()?;
     let form = form.into_inner();
     let roles = &vec![
-        "curator".to_string(),
+        "restaurant".to_string(),
     ];
     let a = Auth::new(&form.phone, "plain", roles, &conn).await?;
     let s = Restaurants::new(&form,a.id, &conn).await?;

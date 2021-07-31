@@ -13,8 +13,8 @@ use topgo::users::routes::users_routes;
 use topgo::form::create_landing_form;
 use topgo::temp::routes::location_routes;
 use topgo::ordering::routes::ordering_routes;
-use topgo::reports::routes::reports_routes;
 use r2d2_redis::{r2d2 as rd_redis, redis, RedisConnectionManager};
+use actix_cors::Cors;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,16 +43,17 @@ async fn main() -> std::io::Result<()> {
 
     println!("starting server...");
     HttpServer::new(move || {
+        let cors = Cors::permissive();
         App::new()
             .data(pool.clone())
             .data(redis_pool.clone())
             .data(secret.clone())
             .wrap(Logger::default())
+            .wrap(cors)
             .service(web::scope("/api")
                 .configure(users_routes)
                 .configure(location_routes)
                 .configure(ordering_routes)
-                .configure(reports_routes)
                 .route("/form", web::post().to(create_landing_form))
             )
     })
