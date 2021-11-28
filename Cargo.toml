@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 actix_web_dev = {git = "https://github.com/Engine-studio/actix-web-dev-tools"}
 actix-web = "3"
-diesel = { version = "1.4.4", features = ["postgres", "r2d2", "chrono", "uuid","serde_json"] }
+diesel = { version = "1.4.4", features = ["bigdecimal","numeric","postgres", "r2d2", "chrono", "uuid","serde_json"] }
 env_logger = "0.8.3"
 dotenv = "0.15.0"
 futures-util = "0.3.13"
@@ -33,3 +33,4 @@ uuid ={ version = "0.8.2", features = ["v4"] }
 tokio-cron-scheduler = "0.2.1"
 tokio = { version = "1", features = ["full"] }
 actix-cors = "0.5.4"
+bigdecimal = "0.1.0"

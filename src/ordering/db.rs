@@ -3,10 +3,12 @@ use actix_web_dev::error::{
     ErrorType,
     ApiError,
 };
+use r2d2_redis::{RedisConnectionManager, r2d2, redis::{self, Commands}};
 use serde::{Serialize, Deserialize};
 use diesel::{prelude::*, query_dsl::InternalJoinDsl};
 use diesel::pg::PgConnection;
 use super::*;
+//y757nu65 ik6ik 6e kfki
 
 use crate::schema::{
     orders,
@@ -100,9 +102,11 @@ pub struct SuggestedOrders {
     #[sql_type="Paymethod"]
     pub payment_method: PayMethod,
     #[sql_type="Bigint"]
-    pub pay_ammount: i64,
+    pub pay_amount: i64,
     #[sql_type="Double"]
     pub distance: f64,
+    #[sql_type="Varchar"]
+    pub client_comment: String,
 }
 
 #[derive(Serialize,Deserialize,Clone)]
@@ -174,11 +178,14 @@ impl Orders {
         Ok(r)
     }
     pub async fn create_order (
-        data: &NewOrder, 
+        data: &mut NewOrder, 
         conn: &PgConnection,
     ) -> Result<()> {
+        if data.method == PayMethod::Card {
+            data.courier_share = data.courier_share * 104 / 100;
+        }
         diesel::insert_into(orders::table)
-            .values(data)
+            .values(data.clone())
             .execute(conn)?;
         Ok(())
     }
@@ -268,7 +275,7 @@ impl Orders {
         order_id: i64,
         conn: &PgConnection,
     ) -> Result<()> {
-        diesel::sql_query("select * from set_delived($1);")
+        diesel::sql_query("select * from set_delivered($1);")
             .bind::<Bigint,_>(order_id)
             .execute(conn)?;
         Ok(())
@@ -324,7 +331,10 @@ impl Sessions {
     pub async fn finish(
         courier_id: i64,
         conn: &PgConnection,
+        conn_redis: &mut redis::Connection,
     ) -> Result<()> {
+        use crate::temp::db::rm_coords;
+        rm_coords(courier_id, conn_redis).await?;
         diesel::sql_query("select * from end_session($1);")
             .bind::<Bigint,_>(courier_id)
             .execute(conn)?;

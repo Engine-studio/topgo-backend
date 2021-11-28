@@ -1,5 +1,5 @@
 use serde::{Serialize,Deserialize};
-#[derive(Debug,Clone,DbEnum,Serialize,Deserialize)]
+#[derive(Debug,Clone,DbEnum,Serialize,Deserialize,PartialEq,Copy)]
 #[DieselType = "Paymethod"]
 #[DbValueStyle ="PascalCase"]
 pub enum PayMethod {

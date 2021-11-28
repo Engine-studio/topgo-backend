@@ -76,21 +76,21 @@ pub async fn get_distance_pay(
 ) -> Result<HttpResponse> {
         use serde_json::Value;
         let url = format!(
-            "http://routes.maps.sputnik.ru/osrm/router/viaroute?loc={},{}&loc={},{}",
-            data.from_lat,data.from_lng,data.to_lat,data.to_lng); 
+            "http://router.project-osrm.org/route/v1/car/{},{};{},{}",data.from_lng,
+            data.from_lat,data.to_lng,data.to_lat); 
         let resp: Value = reqwest::get(&url)
             .await?
             .json()
             .await?;
-        let dist = resp["route_summary"]["total_distance"]
-                .as_i64()
+        let dist = resp["routes"][0]["distance"]
+                .as_f64()
                 .ok_or_else(||ApiError {
                     code: 500,
                     message: "error in getting coords from json".to_string(),
                     error_type: ErrorType::InternalError,
                 })?;
         Ok(HttpResponse::Ok().json(json!({
-            "cost": dist
+            "cost": dist as i64
         })))
 }
 
@@ -105,30 +105,23 @@ pub async fn get_coords_by_address(
     conn: web::Data<DbPool>,
 ) -> Result<HttpResponse> {
         use serde_json::Value;
-        let url = "http://search.maps.sputnik.ru/search/addr?q=".to_owned() + 
-            &data.address;
-        let resp: Value = reqwest::get(&url)
+        println!("data address {}",data.address);
+        let url = "https://nominatim.openstreetmap.org/search/".to_string() +
+            &data.address
+            +"?format=json&addressdetails=1&limit=1&polygon_svg=1";
+
+        let cl = reqwest::Client::new()
+            .get(&url)
+            .header("Accept-Encoding","gzip, deflate, br,utf-8")
+            .header("User-Agent","PostmanRuntime/7.28.4")
+            .header("Host","topgo.club");
+        let resp: Value = cl.send() 
             .await?
             .json()
             .await?;
-        let coords = resp["result"]["address"][0]["features"][0]
-            ["geometry"]["geometries"][0]["coordinates"]
-                .as_array()
-                .ok_or_else(||ApiError {
-                    code: 500,
-                    message: "error in getting coords from json".to_string(),
-                    error_type: ErrorType::InternalError,
-                })?;
-        let lng = coords[0].as_f64().ok_or_else(|| ApiError {
-                code: 500,
-                message: "error in getting coords from json".to_string(),
-                error_type: ErrorType::InternalError,
-            })?;
-        let lat = coords[1].as_f64().ok_or_else(|| ApiError {
-                code: 500,
-                message: "error in getting coords from json".to_string(),
-                error_type: ErrorType::InternalError,
-            })?;
+        println!("{:?}",resp);
+        let lat = resp[0]["lat"].as_str().unwrap().parse::<f64>().unwrap();
+        let lng = resp[0]["lon"].as_str().unwrap().parse::<f64>().unwrap();
         Ok(HttpResponse::Ok().json(json!({
             "lat": lat,
             "lng": lng,
@@ -219,8 +212,8 @@ pub async fn new_order(
     require!(auth.roles.contains(&"restaurant".to_string()),"not permitted"); 
     require!(auth.id == form.restaurant_id, "not your id");
     let conn = conn.get()?;
-    let form = form.into_inner();
-    Orders::create_order(&form, &conn).await?;
+    let mut form = form.into_inner();
+    Orders::create_order(&mut form, &conn).await?;
     Ok(HttpResponse::Ok().json(()))
 }
 
@@ -315,10 +308,12 @@ pub async fn create_session(
 pub async fn cancel_session(
     auth: Auth,
     conn: web::Data<DbPool>,
+    redis_conn: web::Data<RedisDbPool>,
 ) -> Result<HttpResponse> {
     require!(auth.roles.contains(&"courier".to_string()),"not permitted"); 
     let conn = conn.get()?;
-    let r = Sessions::finish(auth.id, &conn).await?;
+    let mut conn_redis = redis_conn.get()?;
+    let r = Sessions::finish(auth.id, &conn, &mut conn_redis).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 

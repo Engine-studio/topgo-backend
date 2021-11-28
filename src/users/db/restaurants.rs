@@ -51,6 +51,8 @@ pub struct NewRestaurant {
     pub working_from: Vec<chrono::NaiveTime>,
     pub working_till: Vec<chrono::NaiveTime>,
     pub email: String,
+    pub lng: f64,
+    pub lat: f64,
 }
 
 impl Restaurants {
@@ -125,31 +127,6 @@ impl Restaurants {
         id: i64,
         conn: &PgConnection,
     ) -> Result<()> {
-        use serde_json::Value;
-        let url = "http://search.maps.sputnik.ru/search/addr?q=".to_owned() + 
-            &creds.address;
-        let resp: Value = reqwest::get(&url)
-            .await?
-            .json()
-            .await?;
-        let coords = resp["result"]["address"][0]["features"][0]
-            ["geometry"]["geometries"][0]["coordinates"]
-                .as_array()
-                .ok_or_else(||ApiError {
-                    code: 500,
-                    message: "error in getting coords from json".to_string(),
-                    error_type: ErrorType::InternalError,
-                })?;
-        let lng = coords[0].as_f64().ok_or_else(|| ApiError {
-                code: 500,
-                message: "error in getting coords from json".to_string(),
-                error_type: ErrorType::InternalError,
-            })?;
-        let lat = coords[1].as_f64().ok_or_else(|| ApiError {
-                code: 500,
-                message: "error in getting coords from json".to_string(),
-                error_type: ErrorType::InternalError,
-            })?;
         Self::check_mail(&creds).await?;
         diesel::insert_into(restaurants::table)
             .values(&(
@@ -157,8 +134,8 @@ impl Restaurants {
                 restaurants::name.eq(&creds.name),
                 restaurants::phone.eq(&creds.phone),
                 restaurants::pass_hash.eq(make_hash(&creds.password)),
-                restaurants::location_lng.eq(lng),
-                restaurants::location_lat.eq(lat),
+                restaurants::location_lng.eq(creds.lng),
+                restaurants::location_lat.eq(creds.lat),
                 restaurants::working_from.eq(&creds.working_from),
                 restaurants::working_till.eq(&creds.working_till),
                 restaurants::address.eq(&creds.address),
@@ -209,9 +186,10 @@ impl Restaurants {
     ) -> Result<()> {
         diesel::update(restaurants::table
             .filter(restaurants::id.eq(id)))
-            .set(
-                restaurants::is_deleted.eq(true)
-            )
+            .set((
+                restaurants::is_deleted.eq(true),
+                restaurants::phone.eq(&uuid::Uuid::new_v4().to_string())
+            ))
             .execute(conn)?;
         Ok(())
     }
@@ -272,6 +250,8 @@ pub struct RestaurantsInfo {
     pub courier_picture: Option<String>,
     #[sql_type="Bigint"]
     pub restaurant_id: i64,
+    #[sql_type="Bigint"]
+    pub courier_share: i64,
 }
 
 impl RestaurantsInfo {

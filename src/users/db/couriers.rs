@@ -151,6 +151,7 @@ impl Couriers {
     ) -> Result<Sessions> {
         let r = sessions::table
             .filter(sessions::courier_id.eq(courier_id))
+            .filter(sessions::end_real_time.is_null())
             .get_result::<Sessions>(conn)?;
         Ok(r)
     }
@@ -239,9 +240,10 @@ impl Couriers {
     ) -> Result<()> {
         diesel::update(couriers::table
             .filter(couriers::id.eq(id)))
-            .set(
-                couriers::is_deleted.eq(true)
-            )
+            .set((
+                couriers::is_deleted.eq(true),
+                couriers::phone.eq(&uuid::Uuid::new_v4().to_string())
+            ))
             .execute(conn)?;
         Ok(())
     }
@@ -401,7 +403,8 @@ pub struct NullMoney {
 
 #[derive(Serialize,Deserialize,Clone,QueryableByName)]
 pub struct CouriersHistory {
-
+    #[sql_type="Bigint"]
+    pub order_id: i64,
     #[sql_type="Varchar"]
     pub restaurant_address: String,
     #[sql_type="Varchar"]
@@ -412,26 +415,45 @@ pub struct CouriersHistory {
     pub method: PayMethod,
     #[sql_type="Bigint"]
     pub order_price: i64,
-    #[sql_type="Timestamp"]
-    pub take_datetime: chrono::NaiveDateTime,
-    #[sql_type="Timestamp"]
-    pub delivery_datetime: chrono::NaiveDateTime,
+    #[sql_type="Nullable<Timestamp>"]
+    pub take_datetime: Option<chrono::NaiveDateTime>,
+    #[sql_type="Nullable<Timestamp>"]
+    pub delivery_datetime: Option<chrono::NaiveDateTime>,
     #[sql_type="Nullable<Bigint>"]
     pub politeness_rate: Option<i64>,
     #[sql_type="Nullable<Bigint>"]
     pub look_rate: Option<i64>,
     #[sql_type="Bigint"]
     pub courier_id: i64,
-    #[sql_type="Nullable<Orderstatus>"]
-    pub order_status: Option<OrderStatus>,
+    #[sql_type="Orderstatus"]
+    pub order_status: OrderStatus,
+    #[sql_type="Double"]
+    pub restaurant_lat: f64,
+    #[sql_type="Double"]
+    pub restaurant_lng: f64,
+    #[sql_type="Double"]
+    pub destination_lat: f64,
+    #[sql_type="Double"]
+    pub destination_lng: f64,
+    #[sql_type="Varchar"]
+    pub client_comment: String,
 }
 
 impl CouriersHistory {
+    pub async fn get_curr(
+        id: i64,
+        conn: &PgConnection,
+    ) -> Result<Vec<Self>> {
+        let r = diesel::sql_query("select * from courier_history where courier_id=$1 and order_status!=ALL('{Success,FailureByCourier,FailureByRestaurant,Delivered}');") 
+            .bind::<Bigint,_>(id)
+            .get_results(conn)?;
+        Ok(r)
+    }
     pub async fn get(
         id: i64,
         conn: &PgConnection,
     ) -> Result<Vec<Self>> {
-        let r = diesel::sql_query("select * from courier_history where courier_id=$1;") 
+        let r = diesel::sql_query("select * from courier_history where courier_id=$1 and order_status=ANY('{Success,FailureByCourier,FailureByRestaurant,Delivered}');") 
             .bind::<Bigint,_>(id)
             .get_results(conn)?;
         Ok(r)

@@ -123,9 +123,10 @@ impl Curators {
     ) -> Result<()> {
         diesel::update(curators::table
             .filter(curators::id.eq(id)))
-            .set(
-                curators::is_deleted.eq(true)
-            )
+            .set((
+                curators::is_deleted.eq(true),
+                curators::phone.eq(&uuid::Uuid::new_v4().to_string())
+            ))
             .execute(conn)?;
         Ok(())
     }

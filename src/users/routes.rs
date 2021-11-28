@@ -72,6 +72,7 @@ pub fn users_routes(cfg: &mut web::ServiceConfig) {
             .route("/toggle_ban", web::post().to(toggle_ban_courier))
             .route("/get_all", web::post().to(get_all_courier))
             .route("/couriers_for_administration", web::post().to(couriers_for_administration))
+            .route("/get_current", web::post().to(get_self_current_courier))
             .route("/get", web::post().to(get_self_courier))
             .route("/get_history", web::post().to(get_self_history_courier))
             .route("/null_money", web::post().to(null_money_couriers))
@@ -125,6 +126,15 @@ pub async fn get_self_history_courier(
 ) -> Result<HttpResponse> {
     let conn = conn.get()?;
     let r = CouriersHistory::get(auth.id,&conn).await?;
+    Ok(HttpResponse::Ok().json(r))
+}
+
+pub async fn get_self_current_courier(
+    auth: Auth,
+    conn: web::Data<DbPool>,
+) -> Result<HttpResponse> {
+    let conn = conn.get()?;
+    let r = CouriersHistory::get_curr(auth.id,&conn).await?;
     Ok(HttpResponse::Ok().json(r))
 }
 

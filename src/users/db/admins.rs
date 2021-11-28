@@ -105,9 +105,10 @@ impl Admins {
     ) -> Result<()> {
         diesel::update(admins::table
             .filter(admins::id.eq(id)))
-            .set(
-                admins::is_deleted.eq(true)
-            )
+            .set((
+                admins::is_deleted.eq(true),
+                admins::phone.eq(&uuid::Uuid::new_v4().to_string())
+            ))
             .execute(conn)?;
         Ok(())
     }
